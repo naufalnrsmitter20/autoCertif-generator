@@ -1,0 +1,121 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+enum UserRole {
+  ADMIN
+}
+
+enum TemplateFileType {
+  PDF
+  PNG
+  JPG
+}
+
+enum BatchStatus {
+  DRAFT
+  READY
+  GENERATING
+  GENERATED
+  PUBLISHED
+  FAILED
+}
+
+enum CertificateStatus {
+  PENDING
+  GENERATING
+  GENERATED
+  FAILED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  role      UserRole @default(ADMIN)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model CertificateTemplate {
+  id             String           @id @default(cuid())
+  name           String
+  fileType       TemplateFileType
+  sourceFilePath String?
+  pageWidth      Float?
+  pageHeight     Float?
+  namePlacement  Json?
+  fontFamily     String?
+  fontAssetPath  String?
+  fontConfig     Json?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  deletedAt      DateTime?
+
+  batches        CertificateBatch[]
+
+  @@map("certificate_templates")
+}
+
+model CertificateBatch {
+  id          String               @id @default(cuid())
+  name        String
+  templateId  String?
+  template    CertificateTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  status      BatchStatus          @default(DRAFT)
+  publishedAt DateTime?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  deletedAt   DateTime?
+
+  participants Participant[]
+  certificates Certificate[]
+
+  @@index([status])
+  @@index([templateId])
+  @@map("certificate_batches")
+}
+
+model Participant {
+  id        String           @id @default(cuid())
+  batchId   String
+  batch     CertificateBatch @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  name      String
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  deletedAt DateTime?
+
+  certificate Certificate?
+
+  @@unique([id, batchId])
+  @@index([batchId])
+  @@map("participants")
+}
+
+model Certificate {
+  id                String            @id @default(cuid())
+  participantId     String            @unique
+  batchId           String
+  batch             CertificateBatch  @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  participant       Participant       @relation(fields: [participantId, batchId], references: [id, batchId], onDelete: Restrict)
+  status            CertificateStatus @default(PENDING)
+  generatedFilePath String?
+  previewFilePath   String?
+  generationError   String?
+  generatedAt       DateTime?
+  isStale           Boolean           @default(false)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  deletedAt         DateTime?
+
+  @@unique([participantId, batchId])
+  @@index([batchId])
+  @@index([status])
+  @@map("certificates")
+}
