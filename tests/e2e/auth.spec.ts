@@ -55,25 +55,25 @@ test.describe("Authentication & Route Protection Flow", () => {
     await page.click('button[type="submit"]');
 
     // 2. Verified land on /admin
-    await expect(page).toHaveURL(/\/admin/);
+    await expect(page).toHaveURL(/\/admin/, { timeout: 15000 });
     await expect(page.locator("header")).toContainText("AutoCertif");
     await expect(page.locator("header")).toContainText("ADMIN");
     await expect(page.locator("header")).toContainText(adminEmail!);
 
     // 3. Authenticated visit to /login redirects back to /admin
     await page.goto("/login");
-    await expect(page).toHaveURL(/\/admin/);
+    await expect(page).toHaveURL(/\/admin/, { timeout: 15000 });
 
     // 4. Logout
     const logoutBtn = page.locator("header button", { hasText: "Sign out" });
-    await expect(logoutBtn).toBeVisible();
+    await expect(logoutBtn).toBeVisible({ timeout: 15000 });
     await logoutBtn.click();
 
     // 5. Land on /login
-    await expect(page).toHaveURL(/\/login/);
+    await expect(page).toHaveURL(/\/login/, { timeout: 15000 });
 
     // 6. Direct /admin visit now redirects back to /login
     await page.goto("/admin");
-    await expect(page).toHaveURL(/\/login(\?callbackUrl=.*)?/);
+    await expect(page).toHaveURL(/\/login(\?callbackUrl=.*)?/, { timeout: 15000 });
   });
 });

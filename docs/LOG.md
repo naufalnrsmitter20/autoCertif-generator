@@ -87,7 +87,7 @@ Engineering interpretation:
 - `PASS` — `bun run typecheck` (`tsc --noEmit` exited with code 0)
 - `PASS` — `bun run lint` (`eslint` exited with code 0, 0 errors, 0 warnings)
 - `PASS` — `bun run test` (`vitest run` exited with code 0: 3 test files passed, 14 tests passed)
-- `PASS` — `bun run test:e2e` (`playwright test` exited with code 0: 3 tests passed, 1 skipped due to unconfigured environment test credentials)
+- `PASS` — `bun run test:e2e` (`playwright test` exited with code 0: 4 tests passed, 0 skipped; verified unauthenticated redirect, login page elements, generic invalid credential rejection, valid ADMIN login, redirect to `/admin`, authenticated visit to `/login` redirecting to `/admin`, and logout flow)
 - `PASS` — `bun run build` (`next build` Turbopack exited with code 0, `/admin`, `/login`, `/api/auth/[...nextauth]`, and `proxy.ts` generated cleanly)
 
 ## Stack & Baseline Findings
@@ -133,7 +133,10 @@ None for Phase 2.
   - `tests/unit/password.test.ts` (6 tests: length, 72-byte truncation, hash/verify, distinct salts)
   - `tests/unit/credentials-validation.test.ts` (4 tests: email trimming/lowercasing, format validation, empty password rejection)
   - `tests/unit/auth-guard.test.ts` (4 tests: unauthenticated rejection, non-ADMIN rejection, ADMIN identity return)
-- Created `playwright.config.ts` and E2E test spec `tests/e2e/auth.spec.ts` (unauthenticated redirect, form elements, invalid credentials rejection, authenticated login/logout when credentials configured).
+- Created `playwright.config.ts` and E2E test spec `tests/e2e/auth.spec.ts`.
+- Provisioned local ADMIN account via `bun run admin:provision` (`admin@autocertif.local`).
+- Verified database holds exactly 1 ADMIN record with valid hash and no duplicates.
+- Executed `bun run test:e2e`: all 4 tests passed with 0 skips, fully validating unauthenticated redirects, accessible form rendering, generic error responses, valid ADMIN login, session-based redirect from `/login` to `/admin`, and complete logout flow.
 - Executed all 8 canonical verification gates: all passed cleanly.
 
 ### 2026-09-25 — Phase 1 Database Domain Foundation
