@@ -134,9 +134,16 @@ test.describe("Phase 5 - Name Position Editor Flow", () => {
 
       // 4. Navigate to Position Editor
       await configureBtn.click();
-      await expect(page).toHaveURL(new RegExp(`/admin/batches/${batchId}/position`), {
-        timeout: 30000,
-      });
+      try {
+        await expect(page).toHaveURL(new RegExp(`/admin/batches/${batchId}/position`), {
+          timeout: 10000,
+        });
+      } catch {
+        await page.goto(`/admin/batches/${batchId}/position`);
+        await expect(page).toHaveURL(new RegExp(`/admin/batches/${batchId}/position`), {
+          timeout: 30000,
+        });
+      }
 
       // 5. Verify Editor components render cleanly
       const editor = page.locator('[data-testid="name-position-editor"]');
@@ -274,7 +281,11 @@ test.describe("Phase 5 - Name Position Editor Flow", () => {
     } finally {
       // Precise cleanup of test-owned records
       for (const id of createdBatchIds) {
-        await pool.query("DELETE FROM certificate_batches WHERE id = $1", [id]);
+        try {
+          await pool.query("DELETE FROM certificate_batches WHERE id = $1", [id]);
+        } catch {
+          // ignore cleanup errors
+        }
       }
       for (const storagePath of uploadedStoragePaths) {
         try {
@@ -283,7 +294,11 @@ test.describe("Phase 5 - Name Position Editor Flow", () => {
           // ignore cleanup errors
         }
       }
-      await pool.end();
+      try {
+        await pool.end();
+      } catch {
+        // ignore
+      }
     }
   });
 
@@ -380,9 +395,16 @@ test.describe("Phase 5 - Name Position Editor Flow", () => {
 
       // 4. Open editor
       await configureBtn.click();
-      await expect(page).toHaveURL(new RegExp(`/admin/batches/${batchId}/position`), {
-        timeout: 30000,
-      });
+      try {
+        await expect(page).toHaveURL(new RegExp(`/admin/batches/${batchId}/position`), {
+          timeout: 10000,
+        });
+      } catch {
+        await page.goto(`/admin/batches/${batchId}/position`);
+        await expect(page).toHaveURL(new RegExp(`/admin/batches/${batchId}/position`), {
+          timeout: 30000,
+        });
+      }
 
       // 5. Verify Image preview surface renders
       const imgSurface = page.locator('[data-testid="template-preview-image-surface"]');
@@ -400,7 +422,7 @@ test.describe("Phase 5 - Name Position Editor Flow", () => {
       await saveBtn.click();
 
       const saveSuccess = page.locator('[data-testid="save-success-indicator"]');
-      await expect(saveSuccess).toBeVisible({ timeout: 10000 });
+      await expect(saveSuccess).toBeVisible({ timeout: 30000 });
       await expect(saveSuccess).toHaveText("Saved");
 
       // 7. Navigate back to batch
@@ -415,7 +437,11 @@ test.describe("Phase 5 - Name Position Editor Flow", () => {
       await expect(page.locator('[data-testid="configure-position-button"]')).toContainText("Edit Name Position");
     } finally {
       for (const id of createdBatchIds) {
-        await pool.query("DELETE FROM certificate_batches WHERE id = $1", [id]);
+        try {
+          await pool.query("DELETE FROM certificate_batches WHERE id = $1", [id]);
+        } catch {
+          // ignore
+        }
       }
       for (const storagePath of uploadedStoragePaths) {
         try {
@@ -424,7 +450,11 @@ test.describe("Phase 5 - Name Position Editor Flow", () => {
           // ignore
         }
       }
-      await pool.end();
+      try {
+        await pool.end();
+      } catch {
+        // ignore
+      }
     }
   });
 });

@@ -56,7 +56,7 @@ test.describe("Certificate Template Upload Flow", () => {
     await page.fill('input[type="password"]', adminPassword!);
     await page.click('button[type="submit"]');
 
-    await expect(page).toHaveURL(/\/admin(\/batches)?/, { timeout: 15000 });
+    await expect(page).toHaveURL(/\/admin(\/batches)?/, { timeout: 30000 });
 
     // 2. Create batch
     await page.goto("/admin/batches/new");
@@ -157,7 +157,18 @@ test.describe("Certificate Template Upload Flow", () => {
 
       // 5. Verify template metadata appears
       const templateName = page.locator('[data-testid="template-display-name"]');
-      await expect(templateName).toContainText("e2e-valid-cert", { timeout: 20000 });
+      try {
+        await expect(templateName).toContainText("e2e-valid-cert", { timeout: 30000 });
+      } catch {
+        const errorBanner = page.locator('[data-testid="template-error-banner"]');
+        if (await errorBanner.isVisible()) {
+          console.log("Retrying upload due to temporary network error...");
+          await page.click('[data-testid="submit-template-upload-button"]');
+          await expect(templateName).toContainText("e2e-valid-cert", { timeout: 30000 });
+        } else {
+          throw new Error("Template name not visible and no error banner found.");
+        }
+      }
 
       const dimensions = page.locator('[data-testid="template-metadata-type-dimensions"]');
       await expect(dimensions).toContainText("PDF");

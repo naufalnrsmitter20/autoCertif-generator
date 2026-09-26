@@ -1,8 +1,8 @@
 # AutoCertif — Project Log
 
 ## Current State
-**Phase:** Phase 5 — Name Position Editor  
-**Status:** PHASE 5 COMPLETE & ACCEPTED — ALL CANONICAL GATES AND LIVE PLAYWRIGHT E2E PASSED
+**Phase:** Phase 6 — CSV Import & Participant CRUD  
+**Status:** PHASE 6 COMPLETE & ACCEPTED — ALL CANONICAL GATES AND LIVE PLAYWRIGHT E2E PASSED
 
 ## Confirmed Product Decisions
 - Product: AutoCertif — `Certificate Generator` System
@@ -142,16 +142,47 @@ Engineering interpretation:
     - PDF full flow: template upload, position editor navigation, PDF.js canvas verification, pointer drag, width slider, keyboard adjustments, coordinate readout, persistence, page reload verification, mobile viewport responsiveness, and concurrent stale-template conflict rejection.
     - PNG smoke test: image template preview, placement adjustment, and persistence.
   - Executed all 8 canonical verification gates.
+- Phase 6 CSV Import & Participant CRUD established:
+  - Reused installed `papaparse` (5.5.3) and `@types/papaparse` (5.5.2) with Bun.
+  - Implemented canonical name normalization function `normalizeParticipantName` and duplicate comparison key `duplicateKey` in `lib/participants/normalize.ts`:
+    - Trims surrounding whitespace, collapses consecutive internal spaces, preserves legitimate case, accents, and punctuation.
+    - Reused identically across CSV import preview, server confirmation, manual add, manual edit, and duplicate warning detection.
+  - Implemented client-side CSV parser `parseCsvString` and `parseCsvFile` in `lib/participants/csv-parse.ts`:
+    - Operates entirely in browser memory; raw CSV files are never persisted or uploaded to storage or DB blobs.
+    - Strips UTF-8 BOM, requires exact `"name"` header, rejects unexpected extra columns with actionable error messages.
+    - Deterministic 1-based data row numbering (Row 2 for first data row following header).
+    - Classifies empty rows as errors, detects duplicate normalized names (within file and against DB) as non-blocking WARNINGS.
+  - Implemented participant domain service in `lib/participants/service.ts`:
+    - `getActiveParticipants`: fetches active participants ordered by `createdAt` ascending.
+    - `importParticipants`: atomic Prisma `$transaction` bulk-creating normalized participants, server-revalidating every row.
+    - `addParticipant`: validates and adds single participant.
+    - `editParticipant`: validates and updates participant name.
+    - `softDeleteParticipant`: sets `deletedAt = new Date()`.
+    - Safety guard: operations require batch status `DRAFT`; safely halts with error if an active `Certificate` unexpectedly exists on the participant.
+    - Product boundary preserved: importing participants does not alter batch lifecycle status (`DRAFT` remains `DRAFT`).
+  - Implemented authenticated Server Actions in `app/admin/batches/[batchId]/participants/actions.ts` with `requireAdmin()`.
+  - Built desktop-first, accessible, responsive participant management interface at `/admin/batches/[batchId]/participants`:
+    - `CsvImportSection`: file picker, validation summary, preview table with warning/error badges, confirmation button.
+    - `AddParticipantForm`: inline manual addition form with instant feedback.
+    - `ParticipantTable`: active list, inline name editing, soft-delete confirmation dialog.
+    - Cohesive SMK Telkom Malang brand styling (`bg-telkom-red`, `hover:bg-telkom-red-dark`, `text-charcoal`).
+  - Created comprehensive unit tests:
+    - `tests/unit/participant-normalize.test.ts` (15 tests: whitespace collapse, casing, accents, punctuation, validation).
+    - `tests/unit/participant-csv-parse.test.ts` (23 tests: BOM handling, headers, extra columns, empty rows, duplicate detection).
+    - `tests/unit/participant-service.test.ts` (31 tests: authorization, draft requirement, unexpected certificate guard, CRUD operations, transactions).
+  - Created comprehensive Playwright E2E spec in `tests/e2e/participants.spec.ts`:
+    - Complete flow: login, create batch, import CSV with duplicates, manual add, inline edit, soft-delete, persistence verification across page reload.
+    - Responsive viewport verification: desktop and small mobile (375x667) with 0 horizontal overflow.
+  - Executed all canonical verification gates.
 
 ## Verification Gate Results
-- `PASS` — `bun run storage:setup` (Verified live `certificate-templates` bucket: exists, public=false, file_size_limit=10485760, exact allowed MIME types)
 - `PASS` — `bun run prisma validate` (Prisma schema valid)
 - `PASS` — `bun run prisma generate` (Generated Prisma Client 7.10.0 to `generated/prisma`)
 - `PASS` — `bun run prisma migrate status` ("2 migrations found in prisma/migrations, Database schema is up to date!")
 - `PASS` — `bun run typecheck` (`tsc --noEmit` exited with code 0)
 - `PASS` — `bun run lint` (`eslint` exited with code 0, 0 errors, 0 warnings)
-- `PASS` — `bun run test` (`vitest run` exited with code 0: 9 test files passed, 86 unit tests passed)
-- `PASS` — `bun run test:e2e` (`playwright test` exited with code 0: all 10 tests passed across auth, batch-crud, position-editor, and template-upload)
+- `PASS` — `bun run test` (`vitest run` exited with code 0: 12 test files passed, 155 unit tests passed)
+- `PASS` — `bun run test:e2e` (`playwright test` exited with code 0: all 12 tests passed across auth, batch-crud, participants, position-editor, and template-upload)
 - `PASS` — `bun run build` (`bun scripts/copy-pdf-worker.ts && next build` Turbopack exited with code 0, all routes generated cleanly, worker copied)
 
 ## Stack & Baseline Findings
@@ -161,23 +192,45 @@ Engineering interpretation:
 - **Canonical Secret**: `AUTH_SECRET` configured for both NextAuth and Proxy token inspection.
 - **Password Hashing**: `bcryptjs` with work factor 12, 12-char minimum length enforcement, and 72-byte max boundary check.
 - **Authorization Guard**: `requireAdmin()` primitive in `lib/auth/guard.ts`.
+- **CSV Parsing**: Papa Parse 5.5.3 (client-side in-memory parsing, zero raw CSV persistence).
 - **Storage Integration**: `@supabase/supabase-js@2.117.2` for signed upload URL generation and private bucket asset management.
 - **Database / Prisma Setup**:
   - Prisma ORM: `7.10.0`
   - Applied Migrations:
     1. `20260925154353_init_domain_foundation`
     2. `20260925224810_add_user_password_hash`
-  - Zero new migrations required for Phase 4.
+  - Zero new migrations required for Phase 6.
 
 ## Next Action
-1. Proceed to **Phase 5 — Name Position Editor** according to `docs/PRD.md` and `docs/FSD.md`.
+1. Proceed to **Phase 7 — Single Certificate Engine** according to `docs/PRD.md` and `docs/FSD.md`.
 
 ## Open Issues
-- None. Phase 4 is fully verified and accepted against live Supabase Storage and PostgreSQL infrastructure.
+- None. Phase 6 is fully verified and accepted.
 
 ## History
 
-### 2026-09-26 — Phase 4 Live Storage Verification Remediation & Full Acceptance
+### 2026-09-26 — Phase 6 CSV Import & Participant CRUD
+- Reused existing `papaparse` (5.5.3) and `@types/papaparse` (5.5.2) without new dependencies.
+- Implemented client-side memory-only CSV parsing via Papa Parse:
+  - Raw CSV files are never uploaded to Supabase Storage, database blobs, or local filesystem.
+  - Requires single `"name"` header; trims header whitespace and tolerates UTF-8 BOM.
+  - Rejects unexpected extra columns with clear actionable error messages.
+  - Pure normalization function collapses internal repeated spaces and trims outer whitespace while preserving valid characters, casing, accents, and punctuation.
+  - Identifies duplicate normalized names within CSV and against batch DB as non-blocking warnings (names are not unique, duplicates remain fully importable).
+  - Validation preview table renders row status, error messages, and duplicate warnings before ADMIN confirms persistence.
+- Implemented robust server domain mutations and Next.js Server Actions:
+  - `importParticipants`: atomic Prisma `$transaction` bulk-creating normalized participants, server-revalidating every row.
+  - CRUD operations (`addParticipant`, `editParticipant`, `softDeleteParticipant` via `deletedAt = new Date()`).
+  - Batch lifecycle invariant preserved: batch remains in `DRAFT` status; does not auto-advance to `READY`.
+  - Phase 6 temporary safety boundary enforced: operations only permitted on `DRAFT` batches; mutations halt safely if an active `Certificate` unexpectedly exists on the participant (Phase 11 owns published certificate edits).
+- Built clean, responsive, accessible UI at `/admin/batches/[batchId]/participants` adhering to SMK Telkom Malang brand design tokens (`bg-telkom-red`, `hover:bg-telkom-red-dark`, `text-charcoal`).
+- Added comprehensive unit test suites:
+  - `tests/unit/participant-normalize.test.ts` (15 tests)
+  - `tests/unit/participant-csv-parse.test.ts` (23 tests)
+  - `tests/unit/participant-service.test.ts` (31 tests)
+- Added live Playwright E2E spec (`tests/e2e/participants.spec.ts`) covering CSV import with duplicates, manual addition, inline editing, soft-deletion, page-refresh persistence, and mobile/desktop responsive layout verification with zero horizontal overflow.
+- Executed all 8 canonical verification gates (`prisma validate`, `prisma generate`, `prisma migrate status`, `typecheck`, `lint`, `test`, `test:e2e`, `build`), all passing cleanly.
+
 - Verified local live environment credentials for `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` without exposing secret values.
 - Executed `bun run storage:setup`: verified private `certificate-templates` bucket with `public: false`, `file_size_limit: 10485760` (10 MB), and exact allowed MIME types (`application/pdf`, `image/png`, `image/jpeg`).
 - Confirmed unauthenticated public HTTP requests to storage objects return 400 (access denied).

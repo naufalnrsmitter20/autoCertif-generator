@@ -86,6 +86,25 @@ export default async function BatchDetailPage({
         initialTemplate={batch.template}
       />
 
+      {/* Participants entry point */}
+      <div className="rounded-lg border border-zinc-200 bg-white p-6 shadow-xs dark:border-zinc-800 dark:bg-zinc-900">
+        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+          Participants
+        </h2>
+        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+          Import from CSV or manage individual participants for this batch.
+        </p>
+        <div className="mt-4">
+          <Link
+            href={`/admin/batches/${batch.id}/participants`}
+            data-testid="manage-participants-link"
+            className="inline-flex items-center justify-center rounded-md bg-telkom-red hover:bg-telkom-red-dark px-4 py-2 text-sm font-semibold text-white shadow-xs focus:outline-none focus:ring-2 focus:ring-telkom-red transition-colors"
+          >
+            Manage Participants
+          </Link>
+        </div>
+      </div>
+
       <div className="rounded-lg border border-zinc-200 bg-white p-6 shadow-xs dark:border-zinc-800 dark:bg-zinc-900">
         <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
           Edit Batch Name

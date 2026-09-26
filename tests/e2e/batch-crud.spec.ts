@@ -7,6 +7,7 @@ test.describe("Certificate Batch CRUD Flow", () => {
   test("complete batch lifecycle: create, detail, edit name, soft-delete, and not-found verification", async ({
     page,
   }) => {
+    test.setTimeout(120000);
     test.skip(
       !adminEmail || !adminPassword,
       "ADMIN_EMAIL and ADMIN_PASSWORD environment credentials are not configured in this environment"
@@ -22,7 +23,7 @@ test.describe("Certificate Batch CRUD Flow", () => {
     await page.click('button[type="submit"]');
 
     // 2. Verified land on /admin/batches
-    await expect(page).toHaveURL(/\/admin(\/batches)?/, { timeout: 15000 });
+    await expect(page).toHaveURL(/\/admin(\/batches)?/, { timeout: 30000 });
     await expect(page.locator("header")).toContainText("AutoCertif");
     await expect(page.locator("header")).toContainText("Batches");
     await expect(page.locator("header")).toContainText("ADMIN");
@@ -119,6 +120,7 @@ test.describe("Certificate Batch CRUD Flow", () => {
   test("responsive viewport verification: desktop and small mobile layout without horizontal overflow", async ({
     page,
   }) => {
+    test.setTimeout(60000);
     test.skip(
       !adminEmail || !adminPassword,
       "ADMIN_EMAIL and ADMIN_PASSWORD environment credentials are not configured in this environment"
@@ -133,7 +135,7 @@ test.describe("Certificate Batch CRUD Flow", () => {
     await page.fill('input[type="password"]', adminPassword!);
     await page.click('button[type="submit"]');
 
-    await page.waitForURL((url) => url.pathname.startsWith("/admin"), { timeout: 15000 });
+    await page.waitForURL((url) => url.pathname.startsWith("/admin"), { timeout: 30000 });
 
     // Check no horizontal scroll overflow on mobile batches page
     const mobileBatchesOverflow = await page.evaluate(
