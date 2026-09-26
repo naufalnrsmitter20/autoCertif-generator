@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { PDFDocument } from "pdf-lib";
 import sharp from "sharp";
-import { Pool } from "pg";
+import { Pool, QueryResult, QueryResultRow } from "pg";
 import { createClient } from "@supabase/supabase-js";
 
 function getTestPgPool() {
@@ -12,8 +12,35 @@ function getTestPgPool() {
   return new Pool({
     connectionString,
     max: 2,
-    connectionTimeoutMillis: 10000,
+    connectionTimeoutMillis: 15000,
   });
+}
+
+async function queryWithRetry<R extends QueryResultRow = QueryResultRow>(
+  pool: Pool,
+  text: string,
+  params: unknown[] = [],
+  retries = 3
+): Promise<QueryResult<R>> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await pool.query(text, params);
+    } catch (err: unknown) {
+      if (i === retries - 1) throw err;
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      const errorCode = (err as { code?: string })?.code;
+      if (
+        errorCode === "EAI_AGAIN" ||
+        errorMsg.includes("EAI_AGAIN") ||
+        errorMsg.includes("timeout")
+      ) {
+        await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error("Query retry exhaustion");
 }
 
 function getTestSupabaseClient() {
@@ -190,14 +217,16 @@ test.describe("Certificate Template Upload Flow", () => {
       expect(previewResponse.headers()["content-type"]).toContain("application/pdf");
 
       // Capture initial template DB and storage details
-      const batchRes = await pool.query(
+      const batchRes = await queryWithRetry(
+        pool,
         'SELECT "templateId" FROM certificate_batches WHERE id = $1',
         [batchId]
       );
       expect(batchRes.rows[0]?.templateId).toBeTruthy();
       const initialTemplateId = batchRes.rows[0].templateId;
 
-      const templateRes = await pool.query(
+      const templateRes = await queryWithRetry(
+        pool,
         'SELECT "sourceFilePath", "deletedAt" FROM certificate_templates WHERE id = $1',
         [initialTemplateId]
       );
@@ -247,7 +276,8 @@ test.describe("Certificate Template Upload Flow", () => {
       await expect(errorBanner).toContainText("Multi-page PDFs are not supported");
 
       // Verify existing template remains intact after failed replacement
-      const batchCheckRes = await pool.query(
+      const batchCheckRes = await queryWithRetry(
+        pool,
         'SELECT "templateId" FROM certificate_batches WHERE id = $1',
         [batchId]
       );
@@ -302,13 +332,15 @@ test.describe("Certificate Template Upload Flow", () => {
       expect(previewImgResponse.headers()["content-type"]).toContain("image/png");
 
       // 9. Verify database soft-deletion & storage retention behavior
-      const prevTemplateRes = await pool.query(
+      const prevTemplateRes = await queryWithRetry(
+        pool,
         'SELECT "deletedAt" FROM certificate_templates WHERE id = $1',
         [initialTemplateId]
       );
       expect(prevTemplateRes.rows[0]?.deletedAt).not.toBeNull();
 
-      const newBatchRes = await pool.query(
+      const newBatchRes = await queryWithRetry(
+        pool,
         'SELECT "templateId" FROM certificate_batches WHERE id = $1',
         [batchId]
       );
@@ -316,7 +348,8 @@ test.describe("Certificate Template Upload Flow", () => {
       expect(replacementTemplateId).toBeTruthy();
       expect(replacementTemplateId).not.toBe(initialTemplateId);
 
-      const replacementTemplateRes = await pool.query(
+      const replacementTemplateRes = await queryWithRetry(
+        pool,
         'SELECT "sourceFilePath" FROM certificate_templates WHERE id = $1',
         [replacementTemplateId]
       );

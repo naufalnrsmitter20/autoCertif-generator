@@ -235,8 +235,8 @@ Engineering interpretation:
 - `PASS` — `bun run prisma migrate status` ("3 migrations found in prisma/migrations, Database schema is up to date!")
 - `PASS` — `bun run typecheck` (`tsc --noEmit` exited with code 0)
 - `PASS` — `bun run lint` (`eslint` exited with code 0, 0 errors, 1 pre-existing warning in verify script)
-- `PASS` — `bun run test` (`vitest run` exited with code 0: 21 test files passed, 267 unit tests passed)
-- `PASS` — `bun run test:e2e tests/e2e/generation.spec.ts` (`playwright test` exited with code 0: 2 passed)
+- `PASS` — `bun run test` (`vitest run` exited with code 0: 23 test files passed, 284 unit/integration tests passed)
+- `PASS` — `bun run test:e2e` (`playwright test` exited with code 0: 14 passed, 0 failed, 0 skipped across all 6 spec files)
 - `PASS` — `bun run build` (`bun scripts/copy-pdf-worker.ts && next build` Turbopack exited with code 0, all routes generated cleanly, worker copied)
 
 ## Stack & Baseline Findings
@@ -297,8 +297,9 @@ Engineering interpretation:
   - Implemented `action: "resume"` in `app/api/admin/batches/[batchId]/generation/route.ts` allowing ADMIN recovery when dispatch fails between DB commit and Inngest send.
   - Created desktop-first `GenerationSection` in `app/admin/batches/[batchId]/generation-section.tsx` with prerequisites checklist, generation trigger, live polling, and resume button.
 - Verification & Test Coverage:
-  - Unit tests: 21 test files, 267 tests passing (100% pass rate).
-  - Playwright E2E: `tests/e2e/generation.spec.ts` passing (prerequisites checklist and production font guard preflight).
+  - Unit tests: 23 test files, 284 tests passing (100% pass rate, including 10 participant worker failure/retry tests in `generate-participant-worker.test.ts`).
+  - Live architecture & Supabase Output Integration (`phase9-generation-live.test.ts`): verified real pipeline with test font fixture, Participant A (GENERATED) uploaded to private bucket, Participant B (FAILED) with safe error `NAME_DOES_NOT_FIT`, failure isolation, single-page PDF validity, and generation identity protection.
+  - Full Playwright E2E regression: `bun run test:e2e` passing all 14 tests across all 6 spec files (`auth.spec.ts`, `batch-crud.spec.ts`, `generation.spec.ts`, `participants.spec.ts`, `position-editor.spec.ts`, `template-upload.spec.ts`).
   - Production build: Turbopack compilation succeeded with 0 errors.
 
 ### 2026-09-26 — Phase 8 Final Visual & Fitting Verification

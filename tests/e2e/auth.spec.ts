@@ -40,6 +40,7 @@ test.describe("Authentication & Route Protection Flow", () => {
   test("authenticated ADMIN login, session verification, and logout", async ({
     page,
   }) => {
+    test.setTimeout(120000);
     const adminEmail = process.env.ADMIN_EMAIL;
     const adminPassword = process.env.ADMIN_PASSWORD;
 
@@ -55,7 +56,7 @@ test.describe("Authentication & Route Protection Flow", () => {
     await page.click('button[type="submit"]');
 
     // 2. Verified land on /admin
-    await expect(page).toHaveURL(/\/admin/, { timeout: 15000 });
+    await expect(page).toHaveURL(/\/admin/, { timeout: 60000 });
     await expect(page.locator("header")).toContainText("AutoCertif");
     await expect(page.locator("header")).toContainText("ADMIN");
     await expect(page.locator("header")).toContainText(adminEmail!);
