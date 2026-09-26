@@ -248,6 +248,23 @@ Engineering interpretation:
 
 ## History
 
+### 2026-09-26 — Phase 8 Final Visual & Fitting Verification
+- Executed visual & raster render verification across Scenarios A, B, C, D, E using `pdfjs-dist` and `@napi-rs/canvas`:
+  - Scenario A: Single-line at default size (PDF template, 28pt) — rendered and verified horizontally and vertically centered.
+  - Scenario B: Single-line after shrinking (PDF template, shrank from 36pt to 19pt) — verified within maxWidth without truncation or ellipsis.
+  - Scenario C: Two-line wrapped name (PDF template, 20pt) — verified line 1 above line 2, centered composite block around anchor, no line overlap, no clipping.
+  - Scenario D: PDF source template with artwork — verified borders and corner accents preserved intact in raster.
+  - Scenario E: PNG source template with artwork (150 DPI) — verified exact aspect ratio preservation (no stretch/distortion), DPI conversion (576 x 384 pt), two-line wrap at 23pt.
+- All 39 raster and layout invariant checks passed with 100% success. Visual PNG artifacts saved to `tests/fixtures/output/`.
+  - `tests/fixtures/output/scenario_A_single_line_default.png`
+  - `tests/fixtures/output/scenario_B_single_line_shrink.png`
+  - `tests/fixtures/output/scenario_C_two_line_wrap.png`
+  - `tests/fixtures/output/scenario_D_pdf_artwork.png`
+  - `tests/fixtures/output/scenario_E_png_artwork.png`
+- Confirmed passing test coverage for all 12 fitting edge cases in `tests/unit/rendering-fitting.test.ts`.
+- Re-affirmed production font status: NOT CONFIGURED (test font strictly isolated to test fixtures).
+- Re-affirmed strict phase boundaries: zero database mutations, zero storage uploads, zero Inngest jobs, zero bulk generation code introduced.
+
 ### 2026-09-26 — Phase 8 Name Auto-Fitting & Rendering Policy
 - Implemented pure, deterministic name fitting module in `lib/rendering/fitting.ts`:
   - `generateCandidateFontSizes`: calculates strictly descending font size progression with index-based stepping to prevent floating-point accumulation drift; guarantees exact `minFontSize` evaluation once.
