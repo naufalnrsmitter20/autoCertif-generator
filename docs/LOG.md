@@ -1,8 +1,8 @@
 # AutoCertif — Project Log
 
 ## Current State
-**Phase:** Phase 2 — ADMIN Authentication Completed  
-**Status:** READY FOR PHASE 3 — Admin Shell + Batch CRUD
+**Phase:** Phase 3 — ADMIN Shell + Batch CRUD Completed  
+**Status:** READY FOR PHASE 4 — Template Upload & Storage
 
 ## Confirmed Product Decisions
 - Product: AutoCertif — `Certificate Generator` System
@@ -79,6 +79,21 @@ Engineering interpretation:
   - Configured Vitest (`vitest.config.mts`) and Playwright (`playwright.config.ts`).
   - Created unit tests (`tests/unit/password.test.ts`, `tests/unit/credentials-validation.test.ts`, `tests/unit/auth-guard.test.ts`) and Playwright E2E spec (`tests/e2e/auth.spec.ts`).
   - Executed all 8 canonical verification gates.
+- Phase 3 ADMIN Shell + Batch CRUD established:
+  - Inspected existing `CertificateBatch` domain model; confirmed zero schema migrations needed.
+  - Created reusable admin layout in `app/admin/layout.tsx` featuring AutoCertif branding, Batches navigation, ADMIN identity, and LogoutButton, wrapped in server-side authorization guard.
+  - Updated `app/admin/page.tsx` to redirect cleanly to `/admin/batches`.
+  - Implemented deterministic UTC date formatter in `lib/date.ts` to ensure hydration-safe rendering.
+  - Implemented reusable Zod validation schema in `lib/validations/batch.ts` enforcing whitespace trimming, 1-150 character bounds, blank name rejection, duplicate name allowance, and client field stripping.
+  - Implemented core CertificateBatch query and mutation module in `lib/batches.ts` (`getActiveBatches`, `getActiveBatchById`, `createBatch`, `updateBatchName`, `softDeleteBatch`), enforcing `requireAdmin()` on every operation and soft-deletion via `deletedAt`.
+  - Implemented secure Server Actions in `app/admin/batches/actions.ts` (`createBatchAction`, `updateBatchNameAction`, `deleteBatchAction`) with safe redirect dispatching outside try/catch.
+  - Implemented BatchStatusBadge component in `components/batch-status-badge.tsx` cleanly representing `DRAFT`, `READY`, `GENERATING`, `GENERATED`, `PUBLISHED`, and `FAILED` lifecycle states.
+  - Implemented Batches list page with active filtering (`deletedAt: null`), newest-first ordering, responsive table layout, and clear empty state in `app/admin/batches/page.tsx` and `app/admin/batches/loading.tsx`.
+  - Implemented Create Batch page and form in `app/admin/batches/new/page.tsx` and `create-batch-form.tsx` with accessible validation feedback and pending states.
+  - Implemented Batch Detail and Edit page in `app/admin/batches/[batchId]/page.tsx`, `edit-batch-form.tsx`, `delete-batch-dialog.tsx`, and `not-found.tsx` for missing/soft-deleted records.
+  - Created comprehensive unit tests: `tests/unit/batch-validation.test.ts` (7 tests) and `tests/unit/batch-service.test.ts` (8 tests).
+  - Created comprehensive Playwright E2E spec in `tests/e2e/batch-crud.spec.ts` validating complete lifecycle (create, view, edit name, soft-delete, not-found check) and responsive desktop/mobile viewports with 0 horizontal overflow.
+  - Executed all 8 canonical verification gates.
 
 ## Verification Gate Results
 - `PASS` — `bun run prisma validate` (Prisma schema valid)
@@ -86,9 +101,9 @@ Engineering interpretation:
 - `PASS` — `bun run prisma migrate status` ("2 migrations found in prisma/migrations, Database schema is up to date!")
 - `PASS` — `bun run typecheck` (`tsc --noEmit` exited with code 0)
 - `PASS` — `bun run lint` (`eslint` exited with code 0, 0 errors, 0 warnings)
-- `PASS` — `bun run test` (`vitest run` exited with code 0: 3 test files passed, 14 tests passed)
-- `PASS` — `bun run test:e2e` (`playwright test` exited with code 0: 4 tests passed, 0 skipped; verified unauthenticated redirect, login page elements, generic invalid credential rejection, valid ADMIN login, redirect to `/admin`, authenticated visit to `/login` redirecting to `/admin`, and logout flow)
-- `PASS` — `bun run build` (`next build` Turbopack exited with code 0, `/admin`, `/login`, `/api/auth/[...nextauth]`, and `proxy.ts` generated cleanly)
+- `PASS` — `bun run test` (`vitest run` exited with code 0: 5 test files passed, 29 tests passed)
+- `PASS` — `bun run test:e2e` (`playwright test` exited with code 0: 6 tests passed, 0 skipped, 0 failed; verified auth flows, complete batch CRUD lifecycle, edit name, soft delete, 404 on deleted batch, desktop and small mobile layout without horizontal overflow)
+- `PASS` — `bun run build` (`next build` Turbopack exited with code 0, all routes generated cleanly)
 
 ## Stack & Baseline Findings
 - **Runtime / Package Manager**: Bun v1.4.2 active (`bun.lock` present).
@@ -102,17 +117,34 @@ Engineering interpretation:
   - Applied Migrations:
     1. `20260925154353_init_domain_foundation`
     2. `20260925224810_add_user_password_hash`
+  - Zero new migrations required for Phase 3.
 
 ## Next Action
-Proceed to **Phase 3 — Admin Shell + Batch CRUD**:
-1. Implement admin layout/shell with navigation.
-2. Implement batch creation and listing.
-3. Wire batch status transitions and soft-deletion rules.
+Proceed to **Phase 4 — Template Upload & Storage**:
+1. Implement template upload surface (single-page PDF, PNG, JPG).
+2. Wire Supabase Storage bucket integration.
+3. Persist CertificateTemplate records and link to CertificateBatch.
 
 ## Open Issues
-None for Phase 2.
+None for Phase 3.
 
 ## History
+
+### 2026-09-26 — Phase 3 ADMIN Shell + Batch CRUD
+- Inspected existing `CertificateBatch` Prisma model and confirmed fields (`id`, `name`, `templateId`, `status`, `publishedAt`, `createdAt`, `updatedAt`, `deletedAt`); verified zero database migrations needed.
+- Built reusable Admin shell layout in `app/admin/layout.tsx` with AutoCertif branding, Batches navigation link, authenticated ADMIN role and email badges, and `<LogoutButton />`. Server-side authorization enforced via `getAdminSession()`.
+- Updated `app/admin/page.tsx` to automatically redirect to `/admin/batches`.
+- Created `lib/date.ts` with deterministic UTC date formatter preventing hydration mismatches.
+- Created `lib/validations/batch.ts` implementing `batchInputSchema` and `batchNameSchema` with whitespace trimming, 1-150 character bounds, blank-name rejection, and non-unique duplicate name allowance.
+- Implemented `lib/batches.ts` defining `getActiveBatches`, `getActiveBatchById`, `createBatch`, `updateBatchName`, `softDeleteBatch`, and custom `BatchNotFoundError`. Enforced `requireAdmin()` on every entrypoint and soft-deletion via `deletedAt = new Date()`.
+- Implemented `app/admin/batches/actions.ts` exposing Server Actions (`createBatchAction`, `updateBatchNameAction`, `deleteBatchAction`) with safe redirection handling.
+- Implemented `components/batch-status-badge.tsx` rendering badges for `DRAFT`, `READY`, `GENERATING`, `GENERATED`, `PUBLISHED`, and `FAILED`.
+- Implemented active Batches list page at `app/admin/batches/page.tsx` (and `loading.tsx`) with empty state guidance.
+- Implemented Create Batch route at `app/admin/batches/new/page.tsx` and client form `create-batch-form.tsx`.
+- Implemented Batch Detail and Edit route at `app/admin/batches/[batchId]/page.tsx`, `edit-batch-form.tsx`, `delete-batch-dialog.tsx`, and `not-found.tsx`.
+- Created unit tests `tests/unit/batch-validation.test.ts` (7 tests) and `tests/unit/batch-service.test.ts` (8 tests).
+- Created Playwright E2E spec `tests/e2e/batch-crud.spec.ts` (2 tests) verifying complete batch CRUD lifecycle and responsive desktop/mobile layouts without horizontal overflow.
+- Executed all 8 canonical verification gates; all passed cleanly.
 
 ### 2026-09-26 — Phase 2 ADMIN Authentication
 - Verified `User` table row count (0 rows) prior to schema changes.
