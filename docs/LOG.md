@@ -1,8 +1,8 @@
 # AutoCertif — Project Log
 
 ## Current State
-**Phase:** Phase 6 — CSV Import & Participant CRUD  
-**Status:** PHASE 6 COMPLETE & ACCEPTED — ALL CANONICAL GATES AND LIVE PLAYWRIGHT E2E PASSED
+**Phase:** Phase 8 — Name Auto-Fitting & Rendering Policy  
+**Status:** PHASE 8 COMPLETE & ACCEPTED — ALL CANONICAL GATES AND LIVE PLAYWRIGHT E2E PASSED
 
 ## Confirmed Product Decisions
 - Product: AutoCertif — `Certificate Generator` System
@@ -174,6 +174,44 @@ Engineering interpretation:
     - Complete flow: login, create batch, import CSV with duplicates, manual add, inline edit, soft-delete, persistence verification across page reload.
     - Responsive viewport verification: desktop and small mobile (375x667) with 0 horizontal overflow.
   - Executed all canonical verification gates.
+- Phase 7 Single Certificate Engine established:
+  - Installed `@pdf-lib/fontkit@1.1.1` as a standard dependency; verified clean Next.js 16 / Turbopack build without needing `serverExternalPackages` externalization.
+  - Bundled static permissively licensed TrueType test font at `tests/fixtures/fonts/test-font.ttf` with full license notice (`tests/fixtures/fonts/LICENSE.txt`) explicitly labeled TEST-ONLY. Production font asset remains explicitly NOT CONFIGURED.
+  - Implemented typed domain errors in `lib/rendering/errors.ts`:
+    - `CertificateRenderError` (base error)
+    - `FontNotConfiguredError`
+    - `FontUnsupportedGlyphError` (carries unsupported character and full 32-bit Unicode code point)
+    - `InvalidNamePlacementError`
+    - `InvalidRenderStyleError`
+    - `NameDoesNotFitError` (carries name, measured textWidth, maxWidth, fontSize)
+    - `UnsupportedTemplateGeometryError`
+    - `TemplateRenderError`
+  - Implemented pure geometric transformations in `lib/rendering/geometry.ts`:
+    - Normalized Top-Left $(xRatio, yRatio)$ to PDF Bottom-Left page space ($\text{centerX} = xRatio \times W$, $\text{centerYFromBottom} = (1 - yRatio) \times H$, $\text{maxWidth} = maxWidthRatio \times W$).
+    - Typographic box centering baseline formula:
+      $$\text{baselineY} = (1 - yRatio) \times H - \frac{ascent - descent}{2}$$
+    - Horizontal start position: $\text{startX} = \text{centerX} - \frac{\text{textWidth}}{2}$.
+    - Image DPI policy: valid source density $\ge 72$ and $\le 1200$ used directly; missing density defaults to 300 DPI technical fallback; effective points calculated as $(pixels \times 72) / dpi$; source metadata never overwritten.
+    - Strict PDF geometry validation: zero rotation, matching CropBox/MediaBox with origin (0, 0), and UserUnit 1.0.
+    - Image EXIF orientation validation: orientations $2..8$ rejected.
+    - Explicit required style validation: `fontSize > 0`, `textColor` with RGB channels in $[0.0, 1.0]$.
+  - Implemented font utilities in `lib/rendering/font.ts`:
+    - Fontkit registration on `PDFDocument`.
+    - Custom font embedding.
+    - Full 32-bit Unicode code point glyph validation against `font.getCharacterSet()`.
+    - Text width and typographic box metric measurement.
+  - Implemented core rendering primitive `renderSingleCertificate` in `lib/rendering/engine.ts`:
+    - PDF template branch (in-place artwork overlay, non-mutating source).
+    - PNG and JPG image template branch (embedded edge-to-edge into newly created single-page PDF).
+    - Pre-fitting single-line gate: throws `NameDoesNotFitError` when textWidth > maxWidth (zero auto-fitting, zero clipping).
+    - Pure in-memory execution returning `Uint8Array` PDF bytes; zero Supabase storage upload; zero database record mutations.
+  - Created barrel export in `lib/rendering/index.ts`.
+  - Added comprehensive unit tests (42 new unit tests across 3 new test files, total 197 tests, all passing):
+    - `tests/unit/rendering-geometry.test.ts` (20 tests)
+    - `tests/unit/rendering-font.test.ts` (8 tests)
+    - `tests/unit/rendering-engine.test.ts` (14 tests)
+  - Executed Playwright E2E suite: all 12 tests passed across auth, batch-crud, participants, position-editor, and template-upload.
+  - Executed all 8 canonical verification gates: all PASS.
 
 ## Verification Gate Results
 - `PASS` — `bun run prisma validate` (Prisma schema valid)
@@ -181,13 +219,14 @@ Engineering interpretation:
 - `PASS` — `bun run prisma migrate status` ("2 migrations found in prisma/migrations, Database schema is up to date!")
 - `PASS` — `bun run typecheck` (`tsc --noEmit` exited with code 0)
 - `PASS` — `bun run lint` (`eslint` exited with code 0, 0 errors, 0 warnings)
-- `PASS` — `bun run test` (`vitest run` exited with code 0: 12 test files passed, 155 unit tests passed)
+- `PASS` — `bun run test` (`vitest run` exited with code 0: 16 test files passed, 230 unit tests passed)
 - `PASS` — `bun run test:e2e` (`playwright test` exited with code 0: all 12 tests passed across auth, batch-crud, participants, position-editor, and template-upload)
 - `PASS` — `bun run build` (`bun scripts/copy-pdf-worker.ts && next build` Turbopack exited with code 0, all routes generated cleanly, worker copied)
 
 ## Stack & Baseline Findings
 - **Runtime / Package Manager**: Bun v1.4.2 active (`bun.lock` present).
 - **Application Framework**: Next.js 16.3.6 (Turbopack, App Router) + React 19.2.8 + Tailwind CSS v4. Production build passes cleanly with `serverExternalPackages: ["sharp", "pdf-lib"]`.
+- **PDF Composition & Font Embedding**: `pdf-lib@1.17.1` + `@pdf-lib/fontkit@1.1.1` (deterministic server-side custom font embedding).
 - **Authentication**: NextAuth 4.24.15 (Credentials provider, JWT session strategy, App Router native route handler, `proxy.ts` with `getToken`).
 - **Canonical Secret**: `AUTH_SECRET` configured for both NextAuth and Proxy token inspection.
 - **Password Hashing**: `bcryptjs` with work factor 12, 12-char minimum length enforcement, and 72-byte max boundary check.
@@ -199,15 +238,72 @@ Engineering interpretation:
   - Applied Migrations:
     1. `20260925154353_init_domain_foundation`
     2. `20260925224810_add_user_password_hash`
-  - Zero new migrations required for Phase 6.
+  - Zero new migrations required for Phase 8.
 
 ## Next Action
-1. Proceed to **Phase 7 — Single Certificate Engine** according to `docs/PRD.md` and `docs/FSD.md`.
+1. Proceed to **Phase 9 — Bulk Generation & Inngest Orchestration** according to `docs/PRD.md` and `docs/FSD.md`.
 
 ## Open Issues
-- None. Phase 6 is fully verified and accepted.
+- **Production Font Asset Debt**: Real-template visual acceptance remains blocked until an approved production font asset and configuration are provisioned. (Test-only font is strictly isolated to test fixtures).
 
 ## History
+
+### 2026-09-26 — Phase 8 Name Auto-Fitting & Rendering Policy
+- Implemented pure, deterministic name fitting module in `lib/rendering/fitting.ts`:
+  - `generateCandidateFontSizes`: calculates strictly descending font size progression with index-based stepping to prevent floating-point accumulation drift; guarantees exact `minFontSize` evaluation once.
+  - `splitIntoWords` and `generateCandidateSplits`: generates all $N - 1$ valid word-boundary splits for $N \ge 2$ words; concatenating returned split lines with a space reconstructs the exact normalized name.
+  - Single-line fitting loop: evaluates candidate sizes in descending order; validates horizontal fit (`width <= maxWidth`) and vertical page safety (`top <= pageHeight`, `bottom >= 0`).
+  - Authoritative two-line evaluation policy:
+    - Evaluates every candidate split across candidate font sizes to find the largest candidate font size in $[minFontSize, defaultFontSize]$ where both lines fit $\le maxWidth$, vertical page bounds are safe, and typographic line boxes do not overlap (`topLineBaseline - descent >= bottomLineBaseline + ascent`).
+    - Deterministic ranking criteria: (1) largest `fontSize`, (2) smallest `abs(line1Width - line2Width)`, (3) smallest `max(line1Width, line2Width)`, (4) earliest `splitIndex` (tie-break).
+  - Strongly typed `NameLayoutPlan` (`single-line` vs `two-line`), exporting explicit line objects `{ text, width, startX, baselineY, ascent, descent }`.
+- Enforced zero-slop failure invariants:
+  - Preserved rules: no arbitrary character splitting, no hyphenation, no ellipsis, no silent clipping, maximum two lines.
+  - Enhanced `NameDoesNotFitError` with specific `reason`: `SINGLE_WORD_OVERFLOW`, `TWO_LINE_OVERFLOW`, `VERTICAL_OVERFLOW`, `INSUFFICIENT_LINE_HEIGHT`.
+- Updated `lib/rendering/geometry.ts`:
+  - `RenderCertificateStyle`: explicitly requires `fontSize`, `minFontSize`, `lineHeightMultiplier`, `textColor`, and optional `stepSize` (default: 1.0 pt).
+  - `validateRenderStyle`: strictly enforces `minFontSize <= fontSize`, finite bounds, and non-silent configuration.
+  - Added vertical safety and two-line baseline helpers: `calculateTwoLineBaselines`, `checkTwoLineBoxesOverlap`, `checkVerticalPageSafety`.
+- Updated `lib/rendering/engine.ts`:
+  - Integrated `calculateNameLayout` into both PDF and PNG/JPG rendering branches.
+  - Drawing logic cleanly iterates `layoutPlan.lines`.
+  - Enriched `RenderCertificateResult` with `layoutPlan: NameLayoutPlan`, `textWidth`, `baselineY`.
+- Updated `docs/FSD.md` Section 9 with Phase 8 algorithm, ranking rules, and vertical safety definition (no page-edge clipping and no metric box overlap).
+- Added comprehensive unit tests in `tests/unit/rendering-fitting.test.ts` (23 tests) and integration tests in `tests/unit/rendering-engine.test.ts` (total 230 unit tests across 16 test files, all passing).
+- Executed Playwright E2E suite: all 12 tests passed cleanly (including live Supabase Storage upload, PDF.js canvas, and position editor).
+- Executed Turbopack production build: passed cleanly.
+- Strict Phase 8 boundaries preserved: pure in-memory execution; zero database records created; zero storage uploads; zero Inngest jobs; zero Prisma migrations.
+
+### 2026-09-26 — Phase 7 Single Certificate Engine
+- Installed `@pdf-lib/fontkit@1.1.1` for custom TrueType and OpenType font embedding in `pdf-lib`. Next.js 16 and Turbopack compile cleanly without needing `serverExternalPackages` externalization.
+- Bundled static permissively licensed TrueType test font at `tests/fixtures/fonts/test-font.ttf` (`LiberationSans-Regular.ttf`) accompanied by license notice (`tests/fixtures/fonts/LICENSE.txt`) explicitly labeled TEST-ONLY. Production font asset remains tracked as explicitly NOT CONFIGURED debt.
+- Implemented typed domain errors in `lib/rendering/errors.ts`: `CertificateRenderError`, `FontNotConfiguredError`, `FontUnsupportedGlyphError`, `InvalidNamePlacementError`, `InvalidRenderStyleError`, `NameDoesNotFitError`, `UnsupportedTemplateGeometryError`, `TemplateRenderError`.
+- Implemented pure geometric transformations and strict guardrails in `lib/rendering/geometry.ts`:
+  - Normalized Top-Left $(xRatio, yRatio)$ to PDF Bottom-Left page center coordinates.
+  - Centered typographic box baseline formula:
+    $$\text{baselineY} = (1 - yRatio) \times H - \frac{ascent - descent}{2}$$
+  - Horizontal centering: $\text{startX} = \text{centerX} - \frac{\text{textWidth}}{2}$.
+  - Image DPI policy: valid source density $\ge 72$ and $\le 1200$ used directly; missing density defaults to 300 DPI technical fallback; effective points calculated as $(pixels \times 72) / dpi$; source metadata never overwritten.
+  - Strict PDF geometry validation: single-page PDFs supported only when `rotation === 0`, `CropBox === MediaBox` with origin $(0, 0)$, and `UserUnit` absent or 1.0; throws `UnsupportedTemplateGeometryError` otherwise.
+  - Image EXIF orientation validation: orientations $2..8$ rejected with `UnsupportedTemplateGeometryError`.
+  - Required style validation: `fontSize > 0`, `textColor` with RGB channels in $[0.0, 1.0]$.
+- Implemented font utilities in `lib/rendering/font.ts`:
+  - `registerFontkit`: safe idempotent registration on PDFDocument.
+  - `embedCustomFont`: embeds font bytes via fontkit.
+  - `validateFontGlyphSupport`: validates full 32-bit Unicode code points against `font.getCharacterSet()`, throwing `FontUnsupportedGlyphError` with exact character and code point on unsupported glyphs.
+  - `measureText`: extracts text width, total height, ascent, and descent.
+- Implemented core rendering primitive `renderSingleCertificate` in `lib/rendering/engine.ts`:
+  - Single PDF template branch: overlays participant name directly onto existing page artwork; source bytes remain immutable.
+  - PNG and JPG image template branch: calculates physical page points and embeds image edge-to-edge into newly created PDF.
+  - Pre-fitting single-line gate: throws `NameDoesNotFitError` when textWidth > maxWidth (zero auto-fitting, zero clipping).
+  - Pure in-memory execution returning `Uint8Array` PDF bytes; zero Supabase storage upload; zero database record mutations.
+- Created barrel export in `lib/rendering/index.ts`.
+- Created 42 new unit tests across 3 new test files:
+  - `tests/unit/rendering-geometry.test.ts` (20 tests)
+  - `tests/unit/rendering-font.test.ts` (8 tests)
+  - `tests/unit/rendering-engine.test.ts` (14 tests)
+- Executed all 8 canonical verification gates: all PASS (15 test files, 197 unit tests, 12 Playwright E2E tests, production build).
+- Strict Phase 7 boundaries preserved: no Supabase storage upload, no Certificate DB records, no Inngest jobs, no bulk generation, no Phase 8 auto-fitting.
 
 ### 2026-09-26 — Phase 6 CSV Import & Participant CRUD
 - Reused existing `papaparse` (5.5.3) and `@types/papaparse` (5.5.2) without new dependencies.

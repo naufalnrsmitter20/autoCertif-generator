@@ -168,10 +168,27 @@ export type NamePlacement = {
 - Boundary clamping enforces $xRatio \in [\frac{maxWidthRatio}{2}, 1 - \frac{maxWidthRatio}{2}]$ and $yRatio \in [0, 1]$.
 - Atomic concurrency protection: mutation verifies that batch status is `DRAFT`, `batch.templateId` matches the submitted template, and soft-delete is null, rejecting stale writes with HTTP 409 Conflict.
 
-### Downstream Rendering Translation
-- In future rendering phases, $(xRatio, yRatio)$ will be converted to:
-  - Image rendering: direct top-left pixel space ($X = xRatio \times width$, $Y = yRatio \times height$).
-  - PDF rendering: bottom-left PDF page space, with the semantic center translated into the font text baseline using page dimensions, font metrics, and calculated line height.
+### Downstream Rendering Translation (Established in Phase 7)
+- In the single certificate rendering engine, $(xRatio, yRatio)$ is converted to PDF bottom-left page space:
+  - $\text{centerX} = xRatio \times pageWidth$
+  - $\text{centerYFromBottom} = (1 - yRatio) \times pageHeight$
+  - $\text{maxWidth} = maxWidthRatio \times pageWidth$
+- **Typographic Box Centering Baseline Formula**:
+  $$\text{baselineY} = \text{centerYFromBottom} - \frac{ascent - descent}{2}$$
+  Where $totalHeight = \text{font.heightAtSize}(fontSize, \{\text{descender: true}\})$, $ascent = \text{font.heightAtSize}(fontSize, \{\text{descender: false}\})$, and $descent = totalHeight - ascent$.
+- **Horizontal Positioning**:
+  $$\text{startX} = \text{centerX} - \frac{\text{textWidth}}{2}$$
+  Where $\text{textWidth} = \text{font.widthOfTextAtSize}(name, fontSize)$.
+- **Single-Line Pre-Fitting Gate (Phase 7)**:
+  If $\text{textWidth} > \text{maxWidth}$, throws `NameDoesNotFitError`. Shrink-until-fit and two-line wrapping are deferred to Phase 8.
+- **Image-to-PDF Physical Sizing Policy**:
+  - Valid source density ($\ge 72$ and $\le 1200$) is used when present in image headers.
+  - Missing/undefined density defaults to **300 DPI** as an implementation technical fallback (never written into source metadata).
+  - Physical points: $\text{points} = \frac{\text{pixels} \times 72}{\text{dpi}}$.
+- **PDF Geometry Contract**:
+  Single-page PDFs are supported only when `rotation === 0`, `CropBox === MediaBox` with origin $(0, 0)$, and `UserUnit` is absent or 1.0; otherwise throws `UnsupportedTemplateGeometryError`.
+- **Image Orientation Contract**:
+  EXIF orientations $2..8$ throw `UnsupportedTemplateGeometryError` to prevent silent auto-rotation or re-encoding.
 
 ## 7. Template Positioning Editor
 MVP editor supports the participant-name field only.
@@ -193,53 +210,69 @@ Product expectation: the generated name visually follows the certificate templat
 - **Phase 7 (Single Certificate Engine Prerequisite)**: Deterministic font asset configuration (`fontFamily`, `fontAssetPath`). The system must not assume arbitrary PDFs allow extraction of embedded fonts; deterministic rendering requires referencing project-bundled font assets.
 - **Phase 8 (Name Auto-Fitting)**: Measurement and dynamic fitting parameters (`defaultFontSize`, `minFontSize`, `lineHeight`, shrink loop, and 2-line word wrapping).
 
-## 9. Name Measurement & Fitting
+## 9. Name Measurement & Fitting (Established in Phase 8)
 
 ### Inputs
 - participant `name`
-- font
-- default font size
-- minimum font size
-- maximum name width
-- line height
-- target center coordinate
+- font (`PDFFont`)
+- `fontSize` (default font size, finite > 0)
+- `minFontSize` (minimum font size, finite > 0, <= fontSize)
+- `lineHeightMultiplier` (finite > 0)
+- `stepSize` (optional, default 1.0 pt)
+- target spatial coordinate: `centerX`, `centerYFromBottom`, `maxWidth`
+- `pageHeight`
 
 ### Algorithm
 
 ```text
 normalize input whitespace
 ↓
-measure full name using actual font metrics at default font size
+generate descending candidate font sizes [defaultFontSize, ..., minFontSize]
 ↓
-fits?
- ├─ yes → render one centered line
+single-line fitting loop (largest font size first):
+  fits horizontally (width <= maxWidth) AND vertically safe (top <= pageHeight, bottom >= 0)?
+   ├─ yes → render single centered line
+   └─ no → continue descending
+↓
+single-line fits?
+ ├─ yes → render single centered line
  └─ no
       ↓
-      reduce font size until it fits or reaches min size
-      ↓
-      fits?
-       ├─ yes → render one centered line
+      words < 2 (single unbroken word)?
+       ├─ yes → fail immediately with NameDoesNotFitError(SINGLE_WORD_OVERFLOW)
        └─ no
             ↓
-            split into at most two word-aware lines
+            authoritative two-line evaluation:
+            for every valid word-boundary split (N - 1 candidate splits for N >= 2 words):
+              find largest candidate font size in [minFontSize, defaultFontSize] where:
+                line1Width <= maxWidth AND line2Width <= maxWidth
+                AND vertical page bounds are safe (top <= pageHeight, bottom >= 0)
+                AND typographic line boxes do not overlap (lineHeight >= ascent + descent)
             ↓
-            choose a balanced split and measure both lines
+            discard invalid candidates
+            rank remaining candidates deterministically by:
+              1. largest fontSize
+              2. smallest abs(line1Width - line2Width)
+              3. smallest max(line1Width, line2Width)
+              4. earliest split index (deterministic tie-break)
             ↓
-            fits safely at/above min size?
+            valid candidate exists?
              ├─ yes → render two centered lines
-             └─ no → fail this participant generation
+             └─ no → fail generation with typed NameDoesNotFitError (TWO_LINE_OVERFLOW / VERTICAL_OVERFLOW)
 ```
 
-Rules:
-- use actual font metrics, not name length/character count
-- preserve words; do not split arbitrary letters unless explicitly added later
-- both lines must independently fit `maxWidth`
-- lines must remain inside the configured vertical name area
-- do not truncate with ellipsis
-- do not clip
-- do not overflow silently
-
-If no safe two-line layout exists, store `FAILED` and surface the participant name in ADMIN.
+### Rules & Invariants
+- Use actual font metrics (`PDFFont.widthOfTextAtSize`, `heightAtSize`), never character counts.
+- Preserve words strictly: split only across existing whitespace boundaries. No arbitrary hyphenation or letter splitting.
+- Both lines must independently fit `maxWidth`.
+- **Vertical Safety Definition**:
+  Phase 5 does not persist an arbitrary height ratio. Vertical safety strictly means:
+  1. No page-edge clipping: `topLineTop <= pageHeight` and `bottomLineBottom >= 0`.
+  2. No typographic line-box overlap: `topLineBaseline - descent >= bottomLineBaseline + ascent`.
+- Do not truncate with ellipsis.
+- Do not clip or overflow silently.
+- Single-word names exceeding `maxWidth` at `minFontSize` fail safely with `SINGLE_WORD_OVERFLOW`.
+- If no valid layout plan exists, throw typed `NameDoesNotFitError` surfacing the participant name and reason for ADMIN reporting.
 
 ## 10. CSV Import
 

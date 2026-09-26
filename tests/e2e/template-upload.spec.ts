@@ -104,7 +104,7 @@ test.describe("Certificate Template Upload Flow", () => {
   test("live direct upload, server byte validation, signed preview, and replacement", async ({
     page,
   }) => {
-    test.setTimeout(120000);
+    test.setTimeout(180000);
     test.skip(
       !hasStorageCreds,
       "Supabase Storage credentials are not configured in .env. Live storage upload is NOT VERIFIED in this environment."
@@ -158,13 +158,13 @@ test.describe("Certificate Template Upload Flow", () => {
       // 5. Verify template metadata appears
       const templateName = page.locator('[data-testid="template-display-name"]');
       try {
-        await expect(templateName).toContainText("e2e-valid-cert", { timeout: 30000 });
+        await expect(templateName).toContainText("e2e-valid-cert", { timeout: 60000 });
       } catch {
         const errorBanner = page.locator('[data-testid="template-error-banner"]');
         if (await errorBanner.isVisible()) {
           console.log("Retrying upload due to temporary network error...");
           await page.click('[data-testid="submit-template-upload-button"]');
-          await expect(templateName).toContainText("e2e-valid-cert", { timeout: 30000 });
+          await expect(templateName).toContainText("e2e-valid-cert", { timeout: 60000 });
         } else {
           throw new Error("Template name not visible and no error banner found.");
         }

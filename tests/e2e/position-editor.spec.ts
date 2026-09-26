@@ -43,7 +43,7 @@ test.describe("Phase 5 - Name Position Editor Flow", () => {
   test("full flow: PDF canvas editor, pointer drag, width slider, keyboard, persistence, and stale protection", async ({
     page,
   }) => {
-    test.setTimeout(120000);
+    test.setTimeout(180000);
     test.skip(
       !hasStorageCreds,
       "Supabase Storage credentials are not configured in .env."
@@ -98,13 +98,13 @@ test.describe("Phase 5 - Name Position Editor Flow", () => {
       // Wait for template to configure with transient network retry
       const templateName = page.locator('[data-testid="template-display-name"]');
       try {
-        await expect(templateName).toContainText("test-cert", { timeout: 30000 });
+        await expect(templateName).toContainText("test-cert", { timeout: 60000 });
       } catch {
         const errorBanner = page.locator('[data-testid="template-error-banner"]');
         if (await errorBanner.isVisible()) {
           console.log("Retrying upload due to temporary network error...");
           await page.click('[data-testid="submit-template-upload-button"]');
-          await expect(templateName).toContainText("test-cert", { timeout: 30000 });
+          await expect(templateName).toContainText("test-cert", { timeout: 60000 });
         } else {
           throw new Error("Template name not visible and no error banner found.");
         }
@@ -303,7 +303,7 @@ test.describe("Phase 5 - Name Position Editor Flow", () => {
   });
 
   test("smoke test: PNG image template positioning and preview", async ({ page }) => {
-    test.setTimeout(120000);
+    test.setTimeout(180000);
     test.skip(
       !hasStorageCreds,
       "Supabase Storage credentials are not configured in .env."
@@ -364,13 +364,13 @@ test.describe("Phase 5 - Name Position Editor Flow", () => {
 
       const templateName = page.locator('[data-testid="template-display-name"]');
       try {
-        await expect(templateName).toContainText("cert-image", { timeout: 30000 });
+        await expect(templateName).toContainText("cert-image", { timeout: 60000 });
       } catch {
         const errorBanner = page.locator('[data-testid="template-error-banner"]');
         if (await errorBanner.isVisible()) {
           console.log("Retrying upload due to temporary network error...");
           await page.click('[data-testid="submit-template-upload-button"]');
-          await expect(templateName).toContainText("cert-image", { timeout: 30000 });
+          await expect(templateName).toContainText("cert-image", { timeout: 60000 });
         } else {
           throw new Error("Template name not visible and no error banner found.");
         }
