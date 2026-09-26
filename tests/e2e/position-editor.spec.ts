@@ -75,7 +75,7 @@ test.describe("Phase 5 - Name Position Editor Flow", () => {
         (url) =>
           url.pathname.startsWith("/admin/batches/") &&
           url.pathname !== "/admin/batches/new",
-        { timeout: 15000 }
+        { timeout: 30000 }
       );
       const batchDetailUrl = page.url();
       const batchId = batchDetailUrl.split("/").pop()!;
@@ -320,7 +320,7 @@ test.describe("Phase 5 - Name Position Editor Flow", () => {
         (url) =>
           url.pathname.startsWith("/admin/batches/") &&
           url.pathname !== "/admin/batches/new",
-        { timeout: 15000 }
+        { timeout: 30000 }
       );
       const batchDetailUrl = page.url();
       const batchId = batchDetailUrl.split("/").pop()!;

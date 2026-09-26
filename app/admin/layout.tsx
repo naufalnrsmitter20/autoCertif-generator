@@ -20,8 +20,9 @@ export default async function AdminLayout({
           <div className="flex items-center gap-6">
             <Link
               href="/admin/batches"
-              className="flex items-center gap-2.5 text-base font-bold tracking-tight text-zinc-900 dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100 rounded px-1"
+              className="flex items-center gap-2 text-base font-bold tracking-tight text-zinc-900 dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-telkom-red dark:focus:ring-zinc-100 rounded px-1"
             >
+              <span className="h-2.5 w-2.5 rounded-full bg-telkom-red inline-block shrink-0" aria-hidden="true" />
               <span>AutoCertif</span>
             </Link>
             <nav className="flex items-center gap-1">

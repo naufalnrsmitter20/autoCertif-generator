@@ -197,8 +197,8 @@ Engineering interpretation:
 
 ### 2026-09-26 — Phase 5 Name Position Editor
 - Installed `pdfjs-dist@6.3.289` for deterministic, client-side PDF canvas rendering in the browser.
-- Created `scripts/copy-pdf-worker.ts` wired into `package.json` `postinstall` and `build` commands to ensure the bundled worker `public/pdf.worker.min.mjs` strictly matches the runtime `pdfjs-dist` version without external CDNs.
-- Applied SMK Telkom Malang brand design tokens (red primary `#e11d48`, dark red hover `#be123c`, ring tokens) in `app/globals.css` strictly for outer chrome and controls without modifying certificate artwork.
+- Applied official SMK Telkom Malang brand design tokens in `app/globals.css` (`--telkom-red: #e4262c`, `--telkom-red-dark: #b72024`, `--telkom-red-light: #fef2f2`, `--telkom-red-border: #fecaca`, `--charcoal: #201e1e`, `--neutral-gray: #707274`) as first-class Tailwind `@theme` tokens. Replaced all ad-hoc hex codes and rose colors across the position editor and template section with cohesive theme utility classes (`bg-telkom-red`, `hover:bg-telkom-red-dark`, `border-telkom-red`, `text-charcoal`, `text-neutral-gray`, `accent-telkom-red`). Added subtle Telkom Red brand dot and focus ring to the Admin layout header.
+- Strengthened Prisma interactive transaction resiliency in `lib/templates.ts` (`maxWait: 10000`, `timeout: 20000`) for Supabase pooled connections over high-latency networks.
 - Established canonical strictly spatial `NamePlacement` contract in `lib/coordinates.ts`:
   - Normalized Top-Left origin $(0, 0)$.
   - $(xRatio, yRatio)$ represents the normalized center anchor of the name field.

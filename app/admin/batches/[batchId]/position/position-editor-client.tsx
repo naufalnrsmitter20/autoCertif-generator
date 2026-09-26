@@ -333,7 +333,7 @@ export function PositionEditorClient({
             <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
               {batchName} &bull; Template
             </span>
-            <p className="text-sm font-bold text-[#201E1E] truncate max-w-xs">
+            <p className="text-sm font-bold text-charcoal truncate max-w-xs">
               {template.name} ({template.fileType})
             </p>
           </div>
@@ -358,7 +358,7 @@ export function PositionEditorClient({
               onChange={handleWidthChange}
               disabled={!isDraft || isSaving}
               data-testid="name-width-slider"
-              className="w-28 sm:w-36 accent-[#E4262C] cursor-pointer disabled:opacity-50"
+              className="w-28 sm:w-36 accent-telkom-red cursor-pointer disabled:opacity-50"
               aria-label="Participant name max width"
             />
             <span
@@ -414,7 +414,7 @@ export function PositionEditorClient({
             onClick={handleSave}
             disabled={!isDraft || isSaving || !isDirty}
             data-testid="save-position-button"
-            className="inline-flex items-center justify-center rounded-md bg-[#E4262C] hover:bg-[#B72024] px-4 py-1.5 text-xs font-semibold text-white shadow-xs focus:outline-none focus:ring-2 focus:ring-[#E4262C] focus:ring-offset-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center justify-center rounded-md bg-telkom-red hover:bg-telkom-red-dark px-4 py-1.5 text-xs font-semibold text-white shadow-xs focus:outline-none focus:ring-2 focus:ring-telkom-red focus:ring-offset-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             {isSaving ? "Saving..." : "Save Position"}
           </button>
@@ -426,20 +426,20 @@ export function PositionEditorClient({
         <div
           data-testid="position-editor-error-banner"
           role="alert"
-          className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+          className="rounded-md border border-telkom-red-border bg-telkom-red-light p-4 text-sm text-telkom-red-dark flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
         >
           <div>
             <p className="font-semibold">
               {isStaleConflict ? "Template Conflict" : "Failed to Save Position"}
             </p>
-            <p className="mt-0.5 text-xs text-rose-700">{errorMessage}</p>
+            <p className="mt-0.5 text-xs text-telkom-red-dark">{errorMessage}</p>
           </div>
           {isStaleConflict && (
             <button
               type="button"
               onClick={() => window.location.reload()}
               data-testid="reload-editor-button"
-              className="rounded-md bg-rose-700 px-3 py-1 text-xs font-semibold text-white shadow-xs hover:bg-rose-800 shrink-0"
+              className="rounded-md bg-telkom-red px-3 py-1 text-xs font-semibold text-white shadow-xs hover:bg-telkom-red-dark shrink-0"
             >
               Reload Editor
             </button>
@@ -448,7 +448,7 @@ export function PositionEditorClient({
       )}
 
       {/* Guidance Note */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between text-xs text-[#707274] px-1 gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between text-xs text-neutral-gray px-1 gap-2">
         <p>
           Drag the name field or use <kbd className="px-1 py-0.5 bg-zinc-100 border border-zinc-300 rounded font-mono">Arrow</kbd> keys (<kbd className="px-1 py-0.5 bg-zinc-100 border border-zinc-300 rounded font-mono">Shift</kbd> for faster move). Adjust width with slider or <kbd className="px-1 py-0.5 bg-zinc-100 border border-zinc-300 rounded font-mono">[</kbd> / <kbd className="px-1 py-0.5 bg-zinc-100 border border-zinc-300 rounded font-mono">]</kbd>.
         </p>
@@ -482,7 +482,7 @@ export function PositionEditorClient({
               )}
               {pdfError && (
                 <div className="absolute inset-0 flex items-center justify-center bg-zinc-50 p-4 text-center">
-                  <p className="text-xs text-rose-600">
+                  <p className="text-xs text-telkom-red-dark">
                     Failed to render PDF: {pdfError}
                   </p>
                 </div>
@@ -511,21 +511,21 @@ export function PositionEditorClient({
             onPointerUp={handlePointerUp}
             onKeyDown={handleKeyDown}
             style={overlayStyles}
-            className={`absolute flex items-center justify-center cursor-move select-none transition-shadow touch-none focus:outline-none focus:ring-2 focus:ring-[#E4262C] focus:ring-offset-1 rounded ${
+            className={`absolute flex items-center justify-center cursor-move select-none transition-shadow touch-none focus:outline-none focus:ring-2 focus:ring-telkom-red focus:ring-offset-1 rounded ${
               isDragging
-                ? "border-2 border-[#E4262C] bg-[#E4262C]/10 shadow-lg"
-                : "border-2 border-dashed border-[#E4262C]/80 hover:border-[#E4262C] bg-[#E4262C]/5"
+                ? "border-2 border-telkom-red bg-telkom-red/10 shadow-lg"
+                : "border-2 border-dashed border-telkom-red/80 hover:border-telkom-red bg-telkom-red/5"
             }`}
           >
             {/* Center Anchor Point Indicator */}
             <div
-              className="absolute w-2 h-2 rounded-full bg-[#E4262C] pointer-events-none -translate-x-1/2 -translate-y-1/2"
+              className="absolute w-2 h-2 rounded-full bg-telkom-red pointer-events-none -translate-x-1/2 -translate-y-1/2"
               style={{ left: "50%", top: "50%" }}
               title="Center anchor"
             />
 
             {/* Realistic Sample Participant Name */}
-            <span className="text-zinc-900 font-semibold text-center truncate px-2 py-1.5 text-sm sm:text-base pointer-events-none w-full">
+            <span className="text-charcoal font-semibold text-center truncate px-2 py-1.5 text-sm sm:text-base pointer-events-none w-full">
               Nama Lengkap Peserta
             </span>
           </div>

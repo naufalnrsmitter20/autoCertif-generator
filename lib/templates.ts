@@ -247,7 +247,7 @@ export async function finalizeTemplateUpload(
       }
 
       return created;
-    });
+    }, { maxWait: 10000, timeout: 20000 });
 
     return newTemplate;
   } catch (txError) {
@@ -369,6 +369,6 @@ export async function updateTemplatePlacement(
       templateId: input.templateId,
       namePlacement: validatedPlacement,
     };
-  });
+  }, { maxWait: 10000, timeout: 20000 });
 }
 

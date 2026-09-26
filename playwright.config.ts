@@ -23,5 +23,8 @@ export default defineConfig({
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
+    env: {
+      NODE_OPTIONS: "--max-old-space-size=4096",
+    },
   },
 });

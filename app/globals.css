@@ -5,17 +5,21 @@
   --foreground: #201e1e;
   --telkom-red: #e4262c;
   --telkom-red-dark: #b72024;
+  --telkom-red-light: #fef2f2;
+  --telkom-red-border: #fecaca;
   --charcoal: #201e1e;
   --neutral-gray: #707274;
 }
 
-@theme inline {
+@theme {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-telkom-red: var(--telkom-red);
-  --color-telkom-red-dark: var(--telkom-red-dark);
-  --color-charcoal: var(--charcoal);
-  --color-neutral-gray: var(--neutral-gray);
+  --color-telkom-red: #e4262c;
+  --color-telkom-red-dark: #b72024;
+  --color-telkom-red-light: #fef2f2;
+  --color-telkom-red-border: #fecaca;
+  --color-charcoal: #201e1e;
+  --color-neutral-gray: #707274;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }

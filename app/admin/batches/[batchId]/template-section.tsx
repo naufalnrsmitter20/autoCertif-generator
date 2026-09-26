@@ -231,7 +231,7 @@ export function TemplateSection({
             <Link
               href={`/admin/batches/${batchId}/position`}
               data-testid="configure-position-button"
-              className="inline-flex items-center justify-center rounded-md bg-[#E4262C] hover:bg-[#B72024] px-3 py-1.5 text-xs font-semibold text-white shadow-xs focus:outline-none focus:ring-2 focus:ring-[#E4262C] transition-colors"
+              className="inline-flex items-center justify-center rounded-md bg-telkom-red hover:bg-telkom-red-dark px-3 py-1.5 text-xs font-semibold text-white shadow-xs focus:outline-none focus:ring-2 focus:ring-telkom-red transition-colors"
             >
               {template.namePlacement ? "Edit Name Position" : "Configure Name Position"}
             </Link>
