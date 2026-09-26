@@ -217,7 +217,20 @@ describe("CertificateBatch Service Operations", () => {
               pageHeight: true,
               sourceFilePath: true,
               namePlacement: true,
+              fontFamily: true,
+              fontAssetPath: true,
+              fontConfig: true,
               createdAt: true,
+            },
+          },
+          _count: {
+            select: {
+              participants: {
+                where: { deletedAt: null },
+              },
+              certificates: {
+                where: { deletedAt: null },
+              },
             },
           },
         },

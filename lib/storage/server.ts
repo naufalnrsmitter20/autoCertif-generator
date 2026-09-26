@@ -2,6 +2,7 @@ import "server-only";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import {
   TEMPLATE_STORAGE_BUCKET,
+  GENERATED_CERTIFICATES_BUCKET,
   SIGNED_PREVIEW_URL_EXPIRY_SECONDS,
 } from "./constants";
 
@@ -133,4 +134,29 @@ export async function createTemplateSignedReadUrl(
   }
 
   return data.signedUrl;
+}
+
+/**
+ * Uploads a generated certificate PDF to private storage with retry-safe upsert.
+ * Uses upsert: true so that Inngest retries within the same attempt can safely
+ * overwrite the same deterministic object path.
+ */
+export async function uploadGeneratedCertificate(
+  objectPath: string,
+  pdfBytes: Uint8Array
+): Promise<void> {
+  const supabase = getServerStorageClient();
+
+  const { error } = await supabase.storage
+    .from(GENERATED_CERTIFICATES_BUCKET)
+    .upload(objectPath, pdfBytes, {
+      contentType: "application/pdf",
+      upsert: true,
+    });
+
+  if (error) {
+    throw new StorageOperationError(
+      `Failed to upload generated certificate to storage: ${error.message}`
+    );
+  }
 }

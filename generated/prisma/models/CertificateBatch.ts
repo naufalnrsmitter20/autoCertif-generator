@@ -29,6 +29,7 @@ export type CertificateBatchMinAggregateOutputType = {
   name: string | null
   templateId: string | null
   status: $Enums.BatchStatus | null
+  currentGenerationKey: string | null
   publishedAt: Date | null
   createdAt: Date | null
   updatedAt: Date | null
@@ -40,6 +41,7 @@ export type CertificateBatchMaxAggregateOutputType = {
   name: string | null
   templateId: string | null
   status: $Enums.BatchStatus | null
+  currentGenerationKey: string | null
   publishedAt: Date | null
   createdAt: Date | null
   updatedAt: Date | null
@@ -51,6 +53,7 @@ export type CertificateBatchCountAggregateOutputType = {
   name: number
   templateId: number
   status: number
+  currentGenerationKey: number
   publishedAt: number
   createdAt: number
   updatedAt: number
@@ -64,6 +67,7 @@ export type CertificateBatchMinAggregateInputType = {
   name?: true
   templateId?: true
   status?: true
+  currentGenerationKey?: true
   publishedAt?: true
   createdAt?: true
   updatedAt?: true
@@ -75,6 +79,7 @@ export type CertificateBatchMaxAggregateInputType = {
   name?: true
   templateId?: true
   status?: true
+  currentGenerationKey?: true
   publishedAt?: true
   createdAt?: true
   updatedAt?: true
@@ -86,6 +91,7 @@ export type CertificateBatchCountAggregateInputType = {
   name?: true
   templateId?: true
   status?: true
+  currentGenerationKey?: true
   publishedAt?: true
   createdAt?: true
   updatedAt?: true
@@ -170,6 +176,7 @@ export type CertificateBatchGroupByOutputType = {
   name: string
   templateId: string | null
   status: $Enums.BatchStatus
+  currentGenerationKey: string | null
   publishedAt: Date | null
   createdAt: Date
   updatedAt: Date
@@ -202,6 +209,7 @@ export type CertificateBatchWhereInput = {
   name?: Prisma.StringFilter<"CertificateBatch"> | string
   templateId?: Prisma.StringNullableFilter<"CertificateBatch"> | string | null
   status?: Prisma.EnumBatchStatusFilter<"CertificateBatch"> | $Enums.BatchStatus
+  currentGenerationKey?: Prisma.StringNullableFilter<"CertificateBatch"> | string | null
   publishedAt?: Prisma.DateTimeNullableFilter<"CertificateBatch"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"CertificateBatch"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"CertificateBatch"> | Date | string
@@ -216,6 +224,7 @@ export type CertificateBatchOrderByWithRelationInput = {
   name?: Prisma.SortOrder
   templateId?: Prisma.SortOrderInput | Prisma.SortOrder
   status?: Prisma.SortOrder
+  currentGenerationKey?: Prisma.SortOrderInput | Prisma.SortOrder
   publishedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -233,6 +242,7 @@ export type CertificateBatchWhereUniqueInput = Prisma.AtLeast<{
   name?: Prisma.StringFilter<"CertificateBatch"> | string
   templateId?: Prisma.StringNullableFilter<"CertificateBatch"> | string | null
   status?: Prisma.EnumBatchStatusFilter<"CertificateBatch"> | $Enums.BatchStatus
+  currentGenerationKey?: Prisma.StringNullableFilter<"CertificateBatch"> | string | null
   publishedAt?: Prisma.DateTimeNullableFilter<"CertificateBatch"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"CertificateBatch"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"CertificateBatch"> | Date | string
@@ -247,6 +257,7 @@ export type CertificateBatchOrderByWithAggregationInput = {
   name?: Prisma.SortOrder
   templateId?: Prisma.SortOrderInput | Prisma.SortOrder
   status?: Prisma.SortOrder
+  currentGenerationKey?: Prisma.SortOrderInput | Prisma.SortOrder
   publishedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -264,6 +275,7 @@ export type CertificateBatchScalarWhereWithAggregatesInput = {
   name?: Prisma.StringWithAggregatesFilter<"CertificateBatch"> | string
   templateId?: Prisma.StringNullableWithAggregatesFilter<"CertificateBatch"> | string | null
   status?: Prisma.EnumBatchStatusWithAggregatesFilter<"CertificateBatch"> | $Enums.BatchStatus
+  currentGenerationKey?: Prisma.StringNullableWithAggregatesFilter<"CertificateBatch"> | string | null
   publishedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"CertificateBatch"> | Date | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"CertificateBatch"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"CertificateBatch"> | Date | string
@@ -274,6 +286,7 @@ export type CertificateBatchCreateInput = {
   id?: string
   name: string
   status?: $Enums.BatchStatus
+  currentGenerationKey?: string | null
   publishedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -288,6 +301,7 @@ export type CertificateBatchUncheckedCreateInput = {
   name: string
   templateId?: string | null
   status?: $Enums.BatchStatus
+  currentGenerationKey?: string | null
   publishedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -300,6 +314,7 @@ export type CertificateBatchUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.EnumBatchStatusFieldUpdateOperationsInput | $Enums.BatchStatus
+  currentGenerationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   publishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -314,6 +329,7 @@ export type CertificateBatchUncheckedUpdateInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   templateId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.EnumBatchStatusFieldUpdateOperationsInput | $Enums.BatchStatus
+  currentGenerationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   publishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -327,6 +343,7 @@ export type CertificateBatchCreateManyInput = {
   name: string
   templateId?: string | null
   status?: $Enums.BatchStatus
+  currentGenerationKey?: string | null
   publishedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -337,6 +354,7 @@ export type CertificateBatchUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.EnumBatchStatusFieldUpdateOperationsInput | $Enums.BatchStatus
+  currentGenerationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   publishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -348,6 +366,7 @@ export type CertificateBatchUncheckedUpdateManyInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   templateId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.EnumBatchStatusFieldUpdateOperationsInput | $Enums.BatchStatus
+  currentGenerationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   publishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -369,6 +388,7 @@ export type CertificateBatchCountOrderByAggregateInput = {
   name?: Prisma.SortOrder
   templateId?: Prisma.SortOrder
   status?: Prisma.SortOrder
+  currentGenerationKey?: Prisma.SortOrder
   publishedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -380,6 +400,7 @@ export type CertificateBatchMaxOrderByAggregateInput = {
   name?: Prisma.SortOrder
   templateId?: Prisma.SortOrder
   status?: Prisma.SortOrder
+  currentGenerationKey?: Prisma.SortOrder
   publishedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -391,6 +412,7 @@ export type CertificateBatchMinOrderByAggregateInput = {
   name?: Prisma.SortOrder
   templateId?: Prisma.SortOrder
   status?: Prisma.SortOrder
+  currentGenerationKey?: Prisma.SortOrder
   publishedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -480,6 +502,7 @@ export type CertificateBatchCreateWithoutTemplateInput = {
   id?: string
   name: string
   status?: $Enums.BatchStatus
+  currentGenerationKey?: string | null
   publishedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -492,6 +515,7 @@ export type CertificateBatchUncheckedCreateWithoutTemplateInput = {
   id?: string
   name: string
   status?: $Enums.BatchStatus
+  currentGenerationKey?: string | null
   publishedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -534,6 +558,7 @@ export type CertificateBatchScalarWhereInput = {
   name?: Prisma.StringFilter<"CertificateBatch"> | string
   templateId?: Prisma.StringNullableFilter<"CertificateBatch"> | string | null
   status?: Prisma.EnumBatchStatusFilter<"CertificateBatch"> | $Enums.BatchStatus
+  currentGenerationKey?: Prisma.StringNullableFilter<"CertificateBatch"> | string | null
   publishedAt?: Prisma.DateTimeNullableFilter<"CertificateBatch"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"CertificateBatch"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"CertificateBatch"> | Date | string
@@ -544,6 +569,7 @@ export type CertificateBatchCreateWithoutParticipantsInput = {
   id?: string
   name: string
   status?: $Enums.BatchStatus
+  currentGenerationKey?: string | null
   publishedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -557,6 +583,7 @@ export type CertificateBatchUncheckedCreateWithoutParticipantsInput = {
   name: string
   templateId?: string | null
   status?: $Enums.BatchStatus
+  currentGenerationKey?: string | null
   publishedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -584,6 +611,7 @@ export type CertificateBatchUpdateWithoutParticipantsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.EnumBatchStatusFieldUpdateOperationsInput | $Enums.BatchStatus
+  currentGenerationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   publishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -597,6 +625,7 @@ export type CertificateBatchUncheckedUpdateWithoutParticipantsInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   templateId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.EnumBatchStatusFieldUpdateOperationsInput | $Enums.BatchStatus
+  currentGenerationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   publishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -608,6 +637,7 @@ export type CertificateBatchCreateWithoutCertificatesInput = {
   id?: string
   name: string
   status?: $Enums.BatchStatus
+  currentGenerationKey?: string | null
   publishedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -621,6 +651,7 @@ export type CertificateBatchUncheckedCreateWithoutCertificatesInput = {
   name: string
   templateId?: string | null
   status?: $Enums.BatchStatus
+  currentGenerationKey?: string | null
   publishedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -648,6 +679,7 @@ export type CertificateBatchUpdateWithoutCertificatesInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.EnumBatchStatusFieldUpdateOperationsInput | $Enums.BatchStatus
+  currentGenerationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   publishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -661,6 +693,7 @@ export type CertificateBatchUncheckedUpdateWithoutCertificatesInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   templateId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.EnumBatchStatusFieldUpdateOperationsInput | $Enums.BatchStatus
+  currentGenerationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   publishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -672,6 +705,7 @@ export type CertificateBatchCreateManyTemplateInput = {
   id?: string
   name: string
   status?: $Enums.BatchStatus
+  currentGenerationKey?: string | null
   publishedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -682,6 +716,7 @@ export type CertificateBatchUpdateWithoutTemplateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.EnumBatchStatusFieldUpdateOperationsInput | $Enums.BatchStatus
+  currentGenerationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   publishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -694,6 +729,7 @@ export type CertificateBatchUncheckedUpdateWithoutTemplateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.EnumBatchStatusFieldUpdateOperationsInput | $Enums.BatchStatus
+  currentGenerationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   publishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -706,6 +742,7 @@ export type CertificateBatchUncheckedUpdateManyWithoutTemplateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.EnumBatchStatusFieldUpdateOperationsInput | $Enums.BatchStatus
+  currentGenerationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   publishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -757,6 +794,7 @@ export type CertificateBatchSelect<ExtArgs extends runtime.Types.Extensions.Inte
   name?: boolean
   templateId?: boolean
   status?: boolean
+  currentGenerationKey?: boolean
   publishedAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
@@ -772,6 +810,7 @@ export type CertificateBatchSelectCreateManyAndReturn<ExtArgs extends runtime.Ty
   name?: boolean
   templateId?: boolean
   status?: boolean
+  currentGenerationKey?: boolean
   publishedAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
@@ -784,6 +823,7 @@ export type CertificateBatchSelectUpdateManyAndReturn<ExtArgs extends runtime.Ty
   name?: boolean
   templateId?: boolean
   status?: boolean
+  currentGenerationKey?: boolean
   publishedAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
@@ -796,13 +836,14 @@ export type CertificateBatchSelectScalar = {
   name?: boolean
   templateId?: boolean
   status?: boolean
+  currentGenerationKey?: boolean
   publishedAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   deletedAt?: boolean
 }
 
-export type CertificateBatchOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "name" | "templateId" | "status" | "publishedAt" | "createdAt" | "updatedAt" | "deletedAt", ExtArgs["result"]["certificateBatch"]>
+export type CertificateBatchOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "name" | "templateId" | "status" | "currentGenerationKey" | "publishedAt" | "createdAt" | "updatedAt" | "deletedAt", ExtArgs["result"]["certificateBatch"]>
 export type CertificateBatchInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   template?: boolean | Prisma.CertificateBatch$templateArgs<ExtArgs>
   participants?: boolean | Prisma.CertificateBatch$participantsArgs<ExtArgs>
@@ -828,6 +869,7 @@ export type $CertificateBatchPayload<ExtArgs extends runtime.Types.Extensions.In
     name: string
     templateId: string | null
     status: $Enums.BatchStatus
+    currentGenerationKey: string | null
     publishedAt: Date | null
     createdAt: Date
     updatedAt: Date
@@ -1262,6 +1304,7 @@ export interface CertificateBatchFieldRefs {
   readonly name: Prisma.FieldRef<"CertificateBatch", 'String'>
   readonly templateId: Prisma.FieldRef<"CertificateBatch", 'String'>
   readonly status: Prisma.FieldRef<"CertificateBatch", 'BatchStatus'>
+  readonly currentGenerationKey: Prisma.FieldRef<"CertificateBatch", 'String'>
   readonly publishedAt: Prisma.FieldRef<"CertificateBatch", 'DateTime'>
   readonly createdAt: Prisma.FieldRef<"CertificateBatch", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"CertificateBatch", 'DateTime'>

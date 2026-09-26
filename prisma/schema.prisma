@@ -65,15 +65,16 @@ model CertificateTemplate {
 }
 
 model CertificateBatch {
-  id          String               @id @default(cuid())
-  name        String
-  templateId  String?
-  template    CertificateTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  status      BatchStatus          @default(DRAFT)
-  publishedAt DateTime?
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
-  deletedAt   DateTime?
+  id                   String               @id @default(cuid())
+  name                 String
+  templateId           String?
+  template             CertificateTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  status               BatchStatus          @default(DRAFT)
+  currentGenerationKey String?
+  publishedAt          DateTime?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  deletedAt            DateTime?
 
   participants Participant[]
   certificates Certificate[]
@@ -106,6 +107,7 @@ model Certificate {
   batch             CertificateBatch  @relation(fields: [batchId], references: [id], onDelete: Restrict)
   participant       Participant       @relation(fields: [participantId, batchId], references: [id, batchId], onDelete: Restrict)
   status            CertificateStatus @default(PENDING)
+  generationKey     String?
   generatedFilePath String?
   previewFilePath   String?
   generationError   String?

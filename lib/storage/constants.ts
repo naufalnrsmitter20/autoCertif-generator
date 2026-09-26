@@ -24,3 +24,11 @@ export const ALLOWED_TEMPLATE_EXTENSIONS = [
 ] as const;
 
 export const SIGNED_PREVIEW_URL_EXPIRY_SECONDS = 300; // 5 minutes
+
+export const GENERATED_CERTIFICATES_BUCKET = "generated-certificates";
+
+export const MAX_GENERATED_CERTIFICATE_FILE_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
+
+export const ALLOWED_GENERATED_CERTIFICATE_MIME_TYPES = [
+  "application/pdf",
+] as const;

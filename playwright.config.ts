@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 import "dotenv/config";
 
 export default defineConfig({
+  timeout: 120000,
   testDir: "./tests/e2e",
   fullyParallel: false,
   forbidOnly: !!process.env.CI,

@@ -58,7 +58,20 @@ export async function getActiveBatchById(id: string) {
           pageHeight: true,
           sourceFilePath: true,
           namePlacement: true,
+          fontFamily: true,
+          fontAssetPath: true,
+          fontConfig: true,
           createdAt: true,
+        },
+      },
+      _count: {
+        select: {
+          participants: {
+            where: { deletedAt: null },
+          },
+          certificates: {
+            where: { deletedAt: null },
+          },
         },
       },
     },
@@ -156,4 +169,61 @@ export async function softDeleteBatch(id: string) {
       deletedAt: new Date(),
     },
   });
+}
+
+export interface BatchGenerationSummary {
+  total: number;
+  pending: number;
+  generating: number;
+  generated: number;
+  failed: number;
+}
+
+/**
+ * Fetch certificate generation summary counts for an active batch.
+ */
+export async function getBatchGenerationSummary(
+  batchId: string
+): Promise<BatchGenerationSummary> {
+  await requireAdmin();
+
+  const counts = await prisma.certificate.groupBy({
+    by: ["status"],
+    where: {
+      batchId,
+      deletedAt: null,
+    },
+    _count: {
+      _all: true,
+    },
+  });
+
+  const summary: BatchGenerationSummary = {
+    total: 0,
+    pending: 0,
+    generating: 0,
+    generated: 0,
+    failed: 0,
+  };
+
+  for (const item of counts) {
+    const count = item._count._all;
+    summary.total += count;
+    switch (item.status) {
+      case "PENDING":
+        summary.pending = count;
+        break;
+      case "GENERATING":
+        summary.generating = count;
+        break;
+      case "GENERATED":
+        summary.generated = count;
+        break;
+      case "FAILED":
+        summary.failed = count;
+        break;
+    }
+  }
+
+  return summary;
 }

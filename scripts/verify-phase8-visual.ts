@@ -146,7 +146,7 @@ async function main() {
     const context = canvas.getContext("2d");
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await page.render({ canvasContext: context as any, viewport }).promise;
+    await (page.render as any)({ canvasContext: context as any, viewport }).promise;
 
     const pngBuffer = canvas.toBuffer("image/png");
     const outputPath = path.join(OUTPUT_DIR, outputFilename);
@@ -372,6 +372,9 @@ async function main() {
     );
 
     const plan = renderResult.layoutPlan;
+    if (plan.mode !== "two-line") {
+      throw new Error(`Expected two-line layout plan, got ${plan.mode}`);
+    }
     const [line1, line2] = plan.lines;
     const maxWidth = 842 * 0.35;
     const centerX = 842 * 0.5;

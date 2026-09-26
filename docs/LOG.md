@@ -1,8 +1,8 @@
 # AutoCertif — Project Log
 
 ## Current State
-**Phase:** Phase 8 — Name Auto-Fitting & Rendering Policy  
-**Status:** PHASE 8 COMPLETE & ACCEPTED — ALL CANONICAL GATES AND LIVE PLAYWRIGHT E2E PASSED
+**Phase:** Phase 9 — Bulk Generation & Inngest Background Orchestration  
+**Status:** PHASE 9 COMPLETE & ACCEPTED — ALL CANONICAL GATES AND LIVE PLAYWRIGHT E2E PASSED
 
 ## Confirmed Product Decisions
 - Product: AutoCertif — `Certificate Generator` System
@@ -212,45 +212,94 @@ Engineering interpretation:
     - `tests/unit/rendering-engine.test.ts` (14 tests)
   - Executed Playwright E2E suite: all 12 tests passed across auth, batch-crud, participants, position-editor, and template-upload.
   - Executed all 8 canonical verification gates: all PASS.
-- **Phase 7 — COMPLETE (retrospectively verified 2026-09-26)**:
-  - Narrow retrospective audit executed. All 9 Phase 7 requirements evidenced from source code and passing Phase 8 test suite.
-  - No concrete blockers found. Phase 8 supersession confirmed: auto-fitting in `fitting.ts` extends Phase 7 foundation without removing it.
-  - Production font status: NOT CONFIGURED (tracked as open debt).
+- **Phase 9 — Bulk Generation & Inngest Background Orchestration established**:
+  - Implemented dual generation identity (`CertificateBatch.currentGenerationKey` and `Certificate.generationKey`) protecting batch-level state transitions (`DRAFT -> GENERATING -> GENERATED`).
+  - Generated and applied migration `20260926145009_add_generation_keys` to Supabase PostgreSQL.
+  - Setup private Supabase Storage bucket `generated-certificates` with `uploadGeneratedCertificate` using path `certificates/{batchId}/{participantId}/{generationKey}.pdf` and `{ upsert: true }` retry semantics.
+  - Built strict font configuration validation (`fontConfigSchema` via Zod) and controlled font registry (`resolveFontBytes`), enforcing production font NOT CONFIGURED invariant.
+  - Implemented comprehensive preflight guards (`executeGenerationPreflight`) validating batch eligibility, template presence, geometry (PDF single-page, image EXIF orientation), font registry, fontConfig, active participants (>0), and normalized names.
+  - Built atomic initialization transaction (`initializeGeneration`) with optimistic snapshot revalidation preventing stale mutations.
+  - Implemented reusable, race-safe batch finalization helper (`checkAndFinalizeBatch`) enforcing dual generationKey match and conditional transition to `GENERATED` when all participant certificates reach terminal state.
+  - Created Inngest background orchestration (`autocertif` client):
+    - `generate-batch`: orchestrator function with retry 3, fan-out event ID deduplication (`gen-part-${cert.id}-${generationKey}`), and `onFailure` setting batch to `FAILED`.
+    - `generate-participant`: worker function with concurrency 5, retry 3, atomic claim (`PENDING -> GENERATING`), in-memory PDF rendering & storage upload, explicit domain failure branching (`isParticipantDomainError`), `onFailure` retry exhaustion handler, and finalization check.
+    - Native Next.js App Router Inngest route handler at `/api/inngest`.
+  - Implemented authenticated API route (`/api/admin/batches/[batchId]/generation`) supporting initial trigger and narrow infrastructure recovery (`action: "resume"`).
+  - Built desktop-first `GenerationSection` component with prerequisites checklist, trigger button, polling interval (3s), and resume button.
+  - Created comprehensive unit test suite: 21 test files, 267 tests passing (including preflight, font-config, font-registry, initialization, finalization).
+  - Created live Playwright E2E suite (`tests/e2e/generation.spec.ts`) validating prerequisites blocking and font guard preflight rejection against real database.
 
 ## Verification Gate Results
 - `PASS` — `bun run prisma validate` (Prisma schema valid)
 - `PASS` — `bun run prisma generate` (Generated Prisma Client 7.10.0 to `generated/prisma`)
-- `PASS` — `bun run prisma migrate status` ("2 migrations found in prisma/migrations, Database schema is up to date!")
+- `PASS` — `bun run prisma migrate status` ("3 migrations found in prisma/migrations, Database schema is up to date!")
 - `PASS` — `bun run typecheck` (`tsc --noEmit` exited with code 0)
-- `PASS` — `bun run lint` (`eslint` exited with code 0, 0 errors, 0 warnings)
-- `PASS` — `bun run test` (`vitest run` exited with code 0: 16 test files passed, 230 unit tests passed)
-- `PASS` — `bun run test:e2e` (`playwright test` exited with code 0: all 12 tests passed across auth, batch-crud, participants, position-editor, and template-upload)
+- `PASS` — `bun run lint` (`eslint` exited with code 0, 0 errors, 1 pre-existing warning in verify script)
+- `PASS` — `bun run test` (`vitest run` exited with code 0: 21 test files passed, 267 unit tests passed)
+- `PASS` — `bun run test:e2e tests/e2e/generation.spec.ts` (`playwright test` exited with code 0: 2 passed)
 - `PASS` — `bun run build` (`bun scripts/copy-pdf-worker.ts && next build` Turbopack exited with code 0, all routes generated cleanly, worker copied)
 
 ## Stack & Baseline Findings
 - **Runtime / Package Manager**: Bun v1.4.2 active (`bun.lock` present).
 - **Application Framework**: Next.js 16.3.6 (Turbopack, App Router) + React 19.2.8 + Tailwind CSS v4. Production build passes cleanly with `serverExternalPackages: ["sharp", "pdf-lib"]`.
+- **Background Orchestration**: Inngest SDK (`inngest@^3.49.2`) with route handler at `app/api/inngest/route.ts`.
 - **PDF Composition & Font Embedding**: `pdf-lib@1.17.1` + `@pdf-lib/fontkit@1.1.1` (deterministic server-side custom font embedding).
 - **Authentication**: NextAuth 4.24.15 (Credentials provider, JWT session strategy, App Router native route handler, `proxy.ts` with `getToken`).
 - **Canonical Secret**: `AUTH_SECRET` configured for both NextAuth and Proxy token inspection.
 - **Password Hashing**: `bcryptjs` with work factor 12, 12-char minimum length enforcement, and 72-byte max boundary check.
 - **Authorization Guard**: `requireAdmin()` primitive in `lib/auth/guard.ts`.
 - **CSV Parsing**: Papa Parse 5.5.3 (client-side in-memory parsing, zero raw CSV persistence).
-- **Storage Integration**: `@supabase/supabase-js@2.117.2` for signed upload URL generation and private bucket asset management.
+- **Storage Integration**: `@supabase/supabase-js@2.117.2` for signed upload URL generation and private bucket asset management (`certificate-templates` and `generated-certificates` buckets).
 - **Database / Prisma Setup**:
   - Prisma ORM: `7.10.0`
   - Applied Migrations:
     1. `20260925154353_init_domain_foundation`
     2. `20260925224810_add_user_password_hash`
-  - Zero new migrations required for Phase 8.
+    3. `20260926145009_add_generation_keys`
+  - Database schema is fully up to date.
 
 ## Next Action
-1. Proceed to **Phase 9 — Bulk Generation & Inngest Orchestration** according to `docs/PRD.md` and `docs/FSD.md`.
+1. Proceed to **Phase 10 — Participant Failure Review & Regeneration** according to `docs/PRD.md` and `docs/FSD.md`.
 
 ## Open Issues
 - **Production Font Asset Debt**: Real-template visual acceptance remains blocked until an approved production font asset and configuration are provisioned. (Test-only font is strictly isolated to test fixtures).
 
 ## History
+
+### 2026-09-26 — Phase 9 Bulk Generation & Inngest Orchestration
+- Implemented Phase 9 adhering strictly to all 12 mandatory user corrections.
+- Schema & Migration:
+  - Added nullable `currentGenerationKey String?` to `CertificateBatch` and `generationKey String?` to `Certificate` in `prisma/schema.prisma`.
+  - Created and applied migration `20260926145009_add_generation_keys` to Supabase PostgreSQL.
+- Storage Configuration:
+  - Configured private bucket `generated-certificates` (20 MB limit, `application/pdf`).
+  - Implemented `uploadGeneratedCertificate` with version-isolated path `certificates/{batchId}/{participantId}/{generationKey}.pdf` and `{ upsert: true }` allowing safe retries of the same attempt without overwriting other attempts.
+- Typography & Controlled Font Registry:
+  - Defined strict Zod schema `fontConfigSchema` in `lib/rendering/font-config.ts` enforcing `fontSize > 0`, `minFontSize <= fontSize`, valid RGB colors, and step size.
+  - Implemented controlled font registry in `lib/rendering/font-registry.ts` with project-root path traversal guards and `/*turbopackIgnore: true*/`. Production fonts remain strictly NOT CONFIGURED.
+- Comprehensive Preflight Guards:
+  - Implemented `executeGenerationPreflight` in `lib/generation/preflight.ts` validating batch status (`DRAFT`), active template, spatial `namePlacement`, font registry identifier, `fontConfig`, source file storage accessibility, single-page PDF geometry / EXIF image orientation, active participants (>0), and name normalization.
+  - Prevents fan-out and leaves batch `DRAFT` upon any shared deterministic failure.
+- Atomic Initialization & Dual Generation Identity:
+  - Implemented `initializeGeneration` in `lib/generation/initialize.ts` executing inside an atomic Prisma `$transaction`.
+  - Revalidates preflight snapshot against concurrent DRAFT mutations before committing.
+  - Assigns matching UUID v4 `generationKey` atomically to `CertificateBatch.currentGenerationKey` and all `Certificate.generationKey` rows in `PENDING` state while transitioning `DRAFT -> GENERATING`.
+- Reusable Race-Safe Finalization Helper:
+  - Implemented `checkAndFinalizeBatch` in `lib/generation/finalization.ts`.
+  - Conditioned on both `batch.status == GENERATING` and `batch.currentGenerationKey == generationKey`.
+  - Transitions batch to `GENERATED` when current-attempt pending/generating certificate count reaches 0. Supports all combinations (100% success, partial success, 100% fail).
+- Inngest Background Processing:
+  - Singleton Inngest client configured in `lib/inngest/client.ts`.
+  - Orchestrator function `generate-batch` in `lib/inngest/functions/generate-batch.ts`: triggers on `generation.batch.requested`, validates dual identity guard, dispatches participant events with deterministic IDs (`gen-part-${cert.id}-${generationKey}`), max 3 retries, and `onFailure` setting batch to `FAILED`.
+  - Worker function `generate-participant` in `lib/inngest/functions/generate-participant.ts`: concurrency limit 5, max 3 retries (4 total attempts), atomic transition `PENDING -> GENERATING`, renders certificate via `renderSingleCertificate`, uploads PDF, explicit domain failure branching (`isParticipantDomainError`), `onFailure` retry exhaustion handler setting certificate to `FAILED`, and calls `checkAndFinalizeBatch`.
+  - App Router route handler at `app/api/inngest/route.ts`.
+- Infrastructure Recovery & Admin UI:
+  - Implemented `action: "resume"` in `app/api/admin/batches/[batchId]/generation/route.ts` allowing ADMIN recovery when dispatch fails between DB commit and Inngest send.
+  - Created desktop-first `GenerationSection` in `app/admin/batches/[batchId]/generation-section.tsx` with prerequisites checklist, generation trigger, live polling, and resume button.
+- Verification & Test Coverage:
+  - Unit tests: 21 test files, 267 tests passing (100% pass rate).
+  - Playwright E2E: `tests/e2e/generation.spec.ts` passing (prerequisites checklist and production font guard preflight).
+  - Production build: Turbopack compilation succeeded with 0 errors.
 
 ### 2026-09-26 — Phase 8 Final Visual & Fitting Verification
 - Executed visual & raster render verification across Scenarios A, B, C, D, E using `pdfjs-dist` and `@napi-rs/canvas`:
