@@ -1,8 +1,8 @@
 # AutoCertif — Project Log
 
 ## Current State
-**Phase:** Phase 4 — Template Upload & Storage  
-**Status:** PHASE 4 COMPLETE & ACCEPTED — ALL CANONICAL GATES AND LIVE SUPABASE STORAGE E2E PASSED
+**Phase:** Phase 5 — Name Position Editor  
+**Status:** PHASE 5 COMPLETE & ACCEPTED — ALL CANONICAL GATES AND LIVE PLAYWRIGHT E2E PASSED
 
 ## Confirmed Product Decisions
 - Product: AutoCertif — `Certificate Generator` System
@@ -113,6 +113,35 @@ Engineering interpretation:
     - `tests/unit/template-service.test.ts` (14 tests: auth guards, DRAFT check, compensating cleanup, concurrency guard, multi-batch reference preservation, preview generation).
   - Added Playwright E2E spec in `tests/e2e/template-upload.spec.ts` testing batch detail template UI rendering, client validation, and graceful skipping when live storage credentials are not provided.
   - Updated `.env.example` with clear documentation for server-only (`SUPABASE_URL`, `SUPABASE_SECRET_KEY`) and browser-safe (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`) storage variables.
+- Phase 5 Name Position Editor established:
+  - Installed `pdfjs-dist@6.3.289` for deterministic client-side PDF canvas rendering without CDN dependencies.
+  - Created automated build and postinstall worker copy script `scripts/copy-pdf-worker.ts` copying identical worker version to `public/pdf.worker.min.mjs`.
+  - Added SMK Telkom Malang brand theme tokens to `app/globals.css` applied strictly to outer UI surfaces without modifying certificate template media.
+  - Implemented strictly spatial `NamePlacement` contract and validation in `lib/coordinates.ts`:
+    - Top-left origin $(0, 0)$, normalized center anchor $(xRatio, yRatio)$.
+    - Validation bounds: $0.1 \le maxWidthRatio \le 1.0$, $xRatio \in [\frac{maxWidthRatio}{2}, 1 - \frac{maxWidthRatio}{2}]$, and $yRatio \in [0.0, 1.0]$. Fixed invariant `alignment: "center"`.
+    - Pure coordinate conversion helpers: `recomputeXBounds`, `clampPlacement`, `toNormalizedPlacement`, `toPixelPlacement`.
+  - Implemented `updateTemplatePlacement` in `lib/templates.ts` with atomic transaction and optimistic concurrency guard: verifying batch `DRAFT` status, un-deleted state, and exact matching `batch.templateId === submittedTemplateId`, raising `StaleTemplateConflictError` (HTTP 409) if concurrent replacement occurred.
+  - Updated `getActiveBatchById` in `lib/batches.ts` to include `namePlacement: true`.
+  - Implemented authenticated REST API route at `app/api/admin/batches/[batchId]/template/position/route.ts` with Zod input validation, proper 401/404/400/409 error mapping.
+  - Implemented full visual position editor page at `app/admin/batches/[batchId]/position/page.tsx` and interactive client editor in `app/admin/batches/[batchId]/position/position-editor-client.tsx`:
+    - Mozilla PDF.js canvas renderer using local worker for PDF templates; responsive image element for PNG/JPG templates.
+    - Pointer capture drag & drop with normalized center anchoring and live bounds clamping.
+    - Keyboard positioning with Arrow keys (1% step) and Shift+Arrow (5% step).
+    - Maximum width slider ($10\% - 100\%$) with immediate horizontal re-clamping.
+    - Live coordinate readouts ($X$, $Y$, $Width$ in percentages).
+    - Reset and Save buttons with pending feedback, success notifications, and 409 conflict dialog.
+  - Updated `TemplateSection` (`app/admin/batches/[batchId]/template-section.tsx`) with "Configure Name Position" / "Edit Name Position" link and placement status badges.
+  - Zero database migrations required; batch status remains `DRAFT`.
+  - Font asset configuration cleanly recorded as Phase 7 prerequisite; dynamic font fitting deferred to Phase 8.
+  - Created comprehensive unit tests:
+    - `tests/unit/coordinates.test.ts` (15 tests: normalization, ratio bounds, $x$-clamping on width expansion, roundtrip conversion).
+    - `tests/unit/template-placement-service.test.ts` (7 tests: admin authorization, draft requirement, atomic concurrency/stale check, coordinate saving).
+    - Updated `tests/unit/batch-service.test.ts` (8 tests: namePlacement inclusion).
+  - Created comprehensive Playwright E2E spec in `tests/e2e/position-editor.spec.ts`:
+    - PDF full flow: template upload, position editor navigation, PDF.js canvas verification, pointer drag, width slider, keyboard adjustments, coordinate readout, persistence, page reload verification, mobile viewport responsiveness, and concurrent stale-template conflict rejection.
+    - PNG smoke test: image template preview, placement adjustment, and persistence.
+  - Executed all 8 canonical verification gates.
 
 ## Verification Gate Results
 - `PASS` — `bun run storage:setup` (Verified live `certificate-templates` bucket: exists, public=false, file_size_limit=10485760, exact allowed MIME types)
@@ -121,10 +150,9 @@ Engineering interpretation:
 - `PASS` — `bun run prisma migrate status` ("2 migrations found in prisma/migrations, Database schema is up to date!")
 - `PASS` — `bun run typecheck` (`tsc --noEmit` exited with code 0)
 - `PASS` — `bun run lint` (`eslint` exited with code 0, 0 errors, 0 warnings)
-- `PASS` — `bun run test` (`vitest run` exited with code 0: 7 test files passed, 64 tests passed)
-- `PASS` — `bun run test:e2e` (`playwright test` exited with code 0: all 8 tests passed, 0 skipped, 0 failed across auth, batch-crud, and template-upload)
-- `PASS` — `bun run build` (`next build` Turbopack exited with code 0, all routes generated cleanly)
-- `PASS` — Live Supabase Storage E2E (`tests/e2e/template-upload.spec.ts:104` passed with real Supabase Storage private bucket)
+- `PASS` — `bun run test` (`vitest run` exited with code 0: 9 test files passed, 86 unit tests passed)
+- `PASS` — `bun run test:e2e` (`playwright test` exited with code 0: all 10 tests passed across auth, batch-crud, position-editor, and template-upload)
+- `PASS` — `bun run build` (`bun scripts/copy-pdf-worker.ts && next build` Turbopack exited with code 0, all routes generated cleanly, worker copied)
 
 ## Stack & Baseline Findings
 - **Runtime / Package Manager**: Bun v1.4.2 active (`bun.lock` present).
@@ -166,6 +194,43 @@ Engineering interpretation:
   - Successful replacement with valid PNG image, soft-deletion of old DB template record, and storage preservation of previous valid file bytes.
   - Exact test-owned resource cleanup with zero broad bucket/database wiping.
 - Executed all canonical gates: `storage:setup` (PASS), `typecheck` (PASS), `lint` (PASS), `test` (PASS, 64 tests), `test:e2e` (PASS, 8 tests), `build` (PASS). Phase 4 fully accepted.
+
+### 2026-09-26 — Phase 5 Name Position Editor
+- Installed `pdfjs-dist@6.3.289` for deterministic, client-side PDF canvas rendering in the browser.
+- Created `scripts/copy-pdf-worker.ts` wired into `package.json` `postinstall` and `build` commands to ensure the bundled worker `public/pdf.worker.min.mjs` strictly matches the runtime `pdfjs-dist` version without external CDNs.
+- Applied SMK Telkom Malang brand design tokens (red primary `#e11d48`, dark red hover `#be123c`, ring tokens) in `app/globals.css` strictly for outer chrome and controls without modifying certificate artwork.
+- Established canonical strictly spatial `NamePlacement` contract in `lib/coordinates.ts`:
+  - Normalized Top-Left origin $(0, 0)$.
+  - $(xRatio, yRatio)$ represents the normalized center anchor of the name field.
+  - Validation bounds: $0 \le yRatio \le 1.0$, $0.1 \le maxWidthRatio \le 1.0$, and $xRatio \in [\frac{maxWidthRatio}{2}, 1 - \frac{maxWidthRatio}{2}]$.
+  - Fixed invariant `alignment: "center"`.
+  - Zero font sizing or fitting parameters inside `NamePlacement`.
+  - Pure coordinate conversion helpers: `recomputeXBounds`, `clampPlacement`, `toNormalizedPlacement`, `toPixelPlacement`.
+- Implemented atomic template placement update in `lib/templates.ts` (`updateTemplatePlacement`):
+  - Enforced `requireAdmin()`.
+  - Executed atomic Prisma interactive transaction verifying batch status is `DRAFT`, not soft-deleted, template is not soft-deleted, and `batch.templateId === submittedTemplateId`.
+  - Throws `StaleTemplateConflictError` (HTTP 409) if concurrent replacement occurred.
+- Updated `getActiveBatchById` in `lib/batches.ts` to include `namePlacement: true`.
+- Created authenticated App Router API route at `app/api/admin/batches/[batchId]/template/position/route.ts` with Zod validation and structured HTTP error responses (401, 404, 400, 409, 500).
+- Created visual Name Position Editor at `app/admin/batches/[batchId]/position/page.tsx` and interactive client editor in `app/admin/batches/[batchId]/position/position-editor-client.tsx`:
+  - Supports both PDF (client-side PDF.js canvas) and PNG/JPG (responsive image) templates.
+  - Pointer capture dragging with real-time center coordinate translation and bounds clamping.
+  - Keyboard nudge support (Arrow keys: 1%, Shift+Arrow: 5%).
+  - Maximum width slider ($10\% - 100\%$) with immediate horizontal re-clamping.
+  - Live coordinate readout ($X$, $Y$, $Width$ in %).
+  - Stale template conflict modal with reload prompt when HTTP 409 is returned.
+  - Realistic sample name ("Naufal Nabil Ramadhan").
+- Updated `TemplateSection` (`app/admin/batches/[batchId]/template-section.tsx`) to link to the editor and display current placement status.
+- Recorded deterministic font asset configuration as Phase 7 prerequisite; deferred dynamic font fitting (shrink loop, 2-line wrap) to Phase 8.
+- Preserved strict Phase 5 boundaries: zero database migrations, batch status remains `DRAFT`, no participant CRUD or CSV parsing.
+- Added comprehensive unit tests:
+  - `tests/unit/coordinates.test.ts` (15 tests).
+  - `tests/unit/template-placement-service.test.ts` (7 tests).
+  - `tests/unit/batch-service.test.ts` (updated to 8 tests).
+- Added comprehensive Playwright E2E spec in `tests/e2e/position-editor.spec.ts`:
+  - Full PDF flow (canvas rendering, drag, slider, keyboard, persistence, reload verification, mobile viewport responsiveness, stale-template concurrency conflict).
+  - PNG smoke test (image preview, positioning, and persistence).
+- All 8 canonical verification gates passed cleanly: `validate`, `generate`, `migrate status`, `typecheck`, `lint`, `test` (86 tests), `test:e2e` (10 tests), and `build`.
 
 ### 2026-09-26 — Phase 4 Template Upload & Storage
 - Implemented complete template-upload foundation without proxying file bytes through Vercel/Next.js request bodies.

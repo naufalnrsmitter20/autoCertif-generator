@@ -57,6 +57,7 @@ export async function getActiveBatchById(id: string) {
           pageWidth: true,
           pageHeight: true,
           sourceFilePath: true,
+          namePlacement: true,
           createdAt: true,
         },
       },

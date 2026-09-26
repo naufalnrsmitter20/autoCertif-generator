@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Static public assets
+    "public/**",
     // Agent skill tooling scripts
     ".agents/**",
     ".claude/**",

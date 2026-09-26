@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { formatDisplayDate } from "@/lib/date";
 import { MAX_TEMPLATE_FILE_SIZE_BYTES } from "@/lib/storage/constants";
 import { uploadCandidateToSignedUrl } from "@/lib/storage/client";
@@ -16,6 +17,7 @@ export interface TemplateData {
   pageWidth: number | null;
   pageHeight: number | null;
   sourceFilePath?: string | null;
+  namePlacement?: unknown;
   createdAt: Date | string;
 }
 
@@ -225,18 +227,27 @@ export function TemplateSection({
           </p>
         </div>
         {template && isDraft && (
-          <button
-            type="button"
-            data-testid="replace-template-button"
-            onClick={() => {
-              setShowReplaceDialog(true);
-              setErrorMessage(null);
-              setSelectedFile(null);
-            }}
-            className="inline-flex items-center justify-center rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 shadow-xs hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-          >
-            Replace Template
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/admin/batches/${batchId}/position`}
+              data-testid="configure-position-button"
+              className="inline-flex items-center justify-center rounded-md bg-[#E4262C] hover:bg-[#B72024] px-3 py-1.5 text-xs font-semibold text-white shadow-xs focus:outline-none focus:ring-2 focus:ring-[#E4262C] transition-colors"
+            >
+              {template.namePlacement ? "Edit Name Position" : "Configure Name Position"}
+            </Link>
+            <button
+              type="button"
+              data-testid="replace-template-button"
+              onClick={() => {
+                setShowReplaceDialog(true);
+                setErrorMessage(null);
+                setSelectedFile(null);
+              }}
+              className="inline-flex items-center justify-center rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 shadow-xs hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+            >
+              Replace Template
+            </button>
+          </div>
         )}
       </div>
 
@@ -254,7 +265,7 @@ export function TemplateSection({
       {/* State 1: Active Template Configured */}
       {template && !showReplaceDialog ? (
         <div className="mt-6 space-y-6">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 rounded-lg border border-zinc-100 bg-zinc-50 p-4 dark:border-zinc-800/60 dark:bg-zinc-800/40">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-4 rounded-lg border border-zinc-100 bg-zinc-50 p-4 dark:border-zinc-800/60 dark:bg-zinc-800/40">
             <div>
               <p className="text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
                 Template Name
@@ -278,6 +289,25 @@ export function TemplateSection({
                   {template.fileType}
                 </span>
                 {renderDimensions(template.pageWidth, template.pageHeight, template.fileType)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                Position Status
+              </p>
+              <p
+                data-testid="template-position-status"
+                className="mt-1 text-sm font-semibold"
+              >
+                {template.namePlacement ? (
+                  <span className="inline-flex items-center text-emerald-700 font-medium text-xs bg-emerald-50 border border-emerald-200 rounded px-2 py-0.5">
+                    Configured
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center text-zinc-600 font-medium text-xs bg-zinc-100 border border-zinc-200 rounded px-2 py-0.5">
+                    Not configured
+                  </span>
+                )}
               </p>
             </div>
             <div>

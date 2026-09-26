@@ -149,51 +149,49 @@ If a multi-page PDF is uploaded, reject it in MVP with an actionable validation 
 - an image preview may be generated if useful for browser display
 
 ## 6. Coordinate System
-Persist name placement in a resolution-independent form when practical.
+Persist name placement in a resolution-independent normalized form.
 
-Preferred representation:
-
+### Canonical Coordinate Contract
+- **Origin**: TOP-LEFT $(0, 0)$ of the certificate media surface.
+- **Center Anchor**: $(xRatio, yRatio)$ represents the normalized center anchor of the participant name bounding box.
+- **Strictly Spatial Contract**:
 ```ts
-type NamePlacement = {
-  xRatio: number;       // 0..1, horizontal center position
-  yRatio: number;       // 0..1
-  maxWidthRatio: number;
-  defaultFontSize: number;
-  minFontSize: number;
-  lineHeight: number;
-  alignment: "center";
+export type NamePlacement = {
+  xRatio: number;        // Normalized horizontal center: [maxWidthRatio / 2, 1 - maxWidthRatio / 2]
+  yRatio: number;        // Normalized vertical center: [0.0, 1.0]
+  maxWidthRatio: number; // Normalized maximum allowed width: [0.1, 1.0]
+  alignment: "center";   // Fixed invariant: "center"
 };
 ```
+- Spatial placement is completely decoupled from font sizing and text fitting.
+- Normalized values are viewport-, canvas-, and devicePixelRatio-independent.
+- Boundary clamping enforces $xRatio \in [\frac{maxWidthRatio}{2}, 1 - \frac{maxWidthRatio}{2}]$ and $yRatio \in [0, 1]$.
+- Atomic concurrency protection: mutation verifies that batch status is `DRAFT`, `batch.templateId` matches the submitted template, and soft-delete is null, rejecting stale writes with HTTP 409 Conflict.
 
-The UI converts drag position into normalized coordinates. Generation converts normalized coordinates back to PDF/image coordinates.
-
-Do not persist browser-only pixel coordinates if they would change behavior across preview sizes.
+### Downstream Rendering Translation
+- In future rendering phases, $(xRatio, yRatio)$ will be converted to:
+  - Image rendering: direct top-left pixel space ($X = xRatio \times width$, $Y = yRatio \times height$).
+  - PDF rendering: bottom-left PDF page space, with the semantic center translated into the font text baseline using page dimensions, font metrics, and calculated line height.
 
 ## 7. Template Positioning Editor
 MVP editor supports the participant-name field only.
 
 Required behavior:
-- display a visual preview of the uploaded template
-- show a draggable name placeholder
-- allow ADMIN to position the name
-- save normalized placement
-- display a realistic sample name
-- preserve center alignment
+- visual template preview using Mozilla PDF.js canvas rendering (for PDF templates) or high-DPI image element (for PNG/JPG)
+- one draggable participant-name placeholder with center alignment
+- slider control for maximum allowed width ($maxWidthRatio$) with immediate $xRatio$ bounds recalculation and clamping
+- keyboard positioning support (Arrow keys for 1% step, Shift+Arrow for 5% step)
+- live coordinate readout ($X$, $Y$, $Width$ in percentages)
+- atomic persistence with 409 conflict dialog if template was replaced concurrently
+- realistic sample name ("Naufal Nabil Ramadhan")
+- no arbitrary text, stickers, or shapes
 
-A full arbitrary text-element editor is out of scope.
-
-## 8. Font Handling
+## 8. Font Handling & Phase Dependencies
 Product expectation: the generated name visually follows the certificate template font.
 
-Technical rule:
-- do not assume an arbitrary uploaded PDF's embedded font can be extracted and reused reliably
-- rendering must use a deterministic font asset available to the generation process
-- a template references/configures that usable font asset
-- if a custom font is required and unavailable, generation/configuration must fail clearly rather than silently substitute an incorrect font
-
-The system may use a project-bundled font that matches the supplied template. Automatic font detection/extraction is not an MVP requirement.
-
-For PDF generation, the selected font must be embedded or otherwise rendered deterministically into the output.
+- **Phase 5 (Name Position Editor)**: Captures strictly spatial geometry (`NamePlacement`).
+- **Phase 7 (Single Certificate Engine Prerequisite)**: Deterministic font asset configuration (`fontFamily`, `fontAssetPath`). The system must not assume arbitrary PDFs allow extraction of embedded fonts; deterministic rendering requires referencing project-bundled font assets.
+- **Phase 8 (Name Auto-Fitting)**: Measurement and dynamic fitting parameters (`defaultFontSize`, `minFontSize`, `lineHeight`, shrink loop, and 2-line word wrapping).
 
 ## 9. Name Measurement & Fitting
 

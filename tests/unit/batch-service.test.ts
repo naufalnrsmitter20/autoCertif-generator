@@ -216,6 +216,7 @@ describe("CertificateBatch Service Operations", () => {
               pageWidth: true,
               pageHeight: true,
               sourceFilePath: true,
+              namePlacement: true,
               createdAt: true,
             },
           },

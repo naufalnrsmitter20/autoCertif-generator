@@ -20,6 +20,10 @@ import {
   deleteTemplateObject,
   createTemplateSignedReadUrl,
 } from "@/lib/storage/server";
+import {
+  NamePlacement,
+  namePlacementSchema,
+} from "@/lib/coordinates";
 
 export class TemplateEligibilityError extends Error {
   constructor(message = "Templates can only be configured or replaced for batches in DRAFT status.") {
@@ -32,6 +36,15 @@ export class ConcurrentModificationError extends Error {
   constructor(message = "Batch state changed concurrently. Template finalization aborted.") {
     super(message);
     this.name = "ConcurrentModificationError";
+  }
+}
+
+export class StaleTemplateConflictError extends Error {
+  constructor(
+    message = "The certificate template changed or is no longer assigned to this batch. Reload the editor before saving placement."
+  ) {
+    super(message);
+    this.name = "StaleTemplateConflictError";
   }
 }
 
@@ -277,3 +290,85 @@ export async function getTemplatePreviewSignedUrl(batchId: string): Promise<stri
 
   return createTemplateSignedReadUrl(batch.template.sourceFilePath);
 }
+
+/**
+ * Atomically updates the spatial name placement of a template.
+ *
+ * Enforces atomic conditions:
+ * - requireAdmin()
+ * - batch exists, deletedAt === null, status === DRAFT
+ * - batch.templateId === input.templateId
+ * - template exists, deletedAt === null
+ * - validates placement via namePlacementSchema
+ *
+ * If the template is stale or was replaced concurrently, throws StaleTemplateConflictError.
+ */
+export async function updateTemplatePlacement(
+  batchId: string,
+  input: {
+    templateId: string;
+    placement: NamePlacement;
+  }
+): Promise<{ templateId: string; namePlacement: NamePlacement }> {
+  await requireAdmin();
+
+  const validatedPlacement = namePlacementSchema.parse(input.placement);
+
+  return await prisma.$transaction(async (tx) => {
+    const batch = await tx.certificateBatch.findFirst({
+      where: {
+        id: batchId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        status: true,
+        templateId: true,
+      },
+    });
+
+    if (!batch) {
+      throw new BatchNotFoundError();
+    }
+
+    if (batch.status !== BatchStatus.DRAFT) {
+      throw new TemplateEligibilityError(
+        "Placement can only be configured for batches in DRAFT status."
+      );
+    }
+
+    if (!batch.templateId || batch.templateId !== input.templateId) {
+      throw new StaleTemplateConflictError();
+    }
+
+    // Atomically update CertificateTemplate only if it is the one currently linked
+    // to this active DRAFT batch and not deleted.
+    const updateResult = await tx.certificateTemplate.updateMany({
+      where: {
+        id: input.templateId,
+        deletedAt: null,
+        batches: {
+          some: {
+            id: batchId,
+            deletedAt: null,
+            status: BatchStatus.DRAFT,
+            templateId: input.templateId,
+          },
+        },
+      },
+      data: {
+        namePlacement: validatedPlacement,
+      },
+    });
+
+    if (updateResult.count !== 1) {
+      throw new StaleTemplateConflictError();
+    }
+
+    return {
+      templateId: input.templateId,
+      namePlacement: validatedPlacement,
+    };
+  });
+}
+

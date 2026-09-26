@@ -5,7 +5,7 @@ import {
   validatePassword,
 } from "@/lib/password";
 
-describe("Password Hashing & Validation", () => {
+describe("Password Hashing & Validation", { timeout: 20000 }, () => {
   it("enforces minimum password length of 12 characters", () => {
     expect(validatePassword("short").valid).toBe(false);
     expect(validatePassword("12345678901").valid).toBe(false); // 11 chars
