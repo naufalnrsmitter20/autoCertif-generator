@@ -5,6 +5,7 @@ import { BatchStatusBadge } from "@/components/batch-status-badge";
 import { formatDisplayDate } from "@/lib/date";
 import { EditBatchForm } from "./edit-batch-form";
 import { DeleteBatchDialog } from "./delete-batch-dialog";
+import { TemplateSection } from "./template-section";
 
 export const metadata = {
   title: "Batch Details | AutoCertif Admin",
@@ -77,6 +78,13 @@ export default async function BatchDetailPage({
           </p>
         </div>
       </div>
+
+      <TemplateSection
+        key={batch.template?.id ?? "none"}
+        batchId={batch.id}
+        batchStatus={batch.status}
+        initialTemplate={batch.template}
+      />
 
       <div className="rounded-lg border border-zinc-200 bg-white p-6 shadow-xs dark:border-zinc-800 dark:bg-zinc-900">
         <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">

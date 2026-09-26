@@ -212,6 +212,11 @@ describe("CertificateBatch Service Operations", () => {
             select: {
               id: true,
               name: true,
+              fileType: true,
+              pageWidth: true,
+              pageHeight: true,
+              sourceFilePath: true,
+              createdAt: true,
             },
           },
         },

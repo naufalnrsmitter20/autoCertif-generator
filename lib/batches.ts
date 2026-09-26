@@ -53,6 +53,11 @@ export async function getActiveBatchById(id: string) {
         select: {
           id: true,
           name: true,
+          fileType: true,
+          pageWidth: true,
+          pageHeight: true,
+          sourceFilePath: true,
+          createdAt: true,
         },
       },
     },

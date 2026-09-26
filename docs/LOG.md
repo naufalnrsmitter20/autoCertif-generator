@@ -1,8 +1,8 @@
 # AutoCertif — Project Log
 
 ## Current State
-**Phase:** Phase 3 — ADMIN Shell + Batch CRUD Completed  
-**Status:** READY FOR PHASE 4 — Template Upload & Storage
+**Phase:** Phase 4 — Template Upload & Storage  
+**Status:** PHASE 4 COMPLETE & ACCEPTED — ALL CANONICAL GATES AND LIVE SUPABASE STORAGE E2E PASSED
 
 ## Confirmed Product Decisions
 - Product: AutoCertif — `Certificate Generator` System
@@ -94,41 +94,91 @@ Engineering interpretation:
   - Created comprehensive unit tests: `tests/unit/batch-validation.test.ts` (7 tests) and `tests/unit/batch-service.test.ts` (8 tests).
   - Created comprehensive Playwright E2E spec in `tests/e2e/batch-crud.spec.ts` validating complete lifecycle (create, view, edit name, soft-delete, not-found check) and responsive desktop/mobile viewports with 0 horizontal overflow.
   - Executed all 8 canonical verification gates.
+- Phase 4 Template Upload & Storage established:
+  - Installed `@supabase/supabase-js@2.117.2`; verified existing `pdf-lib` and `sharp` installations.
+  - Zero database migrations required; confirmed all Phase 5 fields on `CertificateTemplate` are nullable in schema.
+  - Established storage architecture separating server-only client (`lib/storage/server.ts`) and browser direct upload client (`lib/storage/client.ts`).
+  - Configured technical maximum file size to 10 MB (10,485,760 bytes) and defined allowed MIME types (`application/pdf`, `image/png`, `image/jpeg`) in `lib/storage/constants.ts`.
+  - Created idempotent setup and validation script in `scripts/setup-storage.ts` enforcing `public: false`, 10 MB limit, and exact MIME coverage.
+  - Implemented authoritative byte validation in `lib/validations/template-file.ts`: single-page PDF enforcement via `pdf-lib`, image dimension & format decoding via `sharp`, format mismatch rejection, and path sanitization.
+  - Implemented template domain service in `lib/templates.ts`:
+    - `initiateTemplateUpload`: requires admin, validates DRAFT status, generates collision-resistant object path `templates/{batchId}/{uuid}.{ext}`, issues signed upload URL with `{ upsert: false }`.
+    - `finalizeTemplateUpload`: requires admin, re-verifies DRAFT status, validates storage path namespace, authoritatively validates downloaded bytes, executes atomic Prisma transaction with optimistic concurrency check (`updateMany` on `status === 'DRAFT'` and `templateId === expectedTemplateId`), soft-deletes old template only if unreferenced by other active batches, and executes compensating cleanup on storage if byte validation or transaction fails.
+    - `getTemplatePreviewSignedUrl`: generates 5-minute signed read URL for private template preview.
+  - Exposed authenticated API route handlers in `app/api/admin/batches/[batchId]/template/{initiate,finalize,preview}/route.ts`.
+  - Created accessible interactive client component `TemplateSection` in `app/admin/batches/[batchId]/template-section.tsx` with upload dropzone, direct storage upload, validation spinner, short-lived preview, and replacement confirmation modal. Integrated cleanly into `app/admin/batches/[batchId]/page.tsx`.
+  - Configured `serverExternalPackages: ["sharp", "pdf-lib"]` in `next.config.ts`.
+  - Added unit tests:
+    - `tests/unit/template-validation.test.ts` (21 tests: PDF single-page/multi-page/corrupt, PNG, JPEG, format mismatch, path namespace, sanitization).
+    - `tests/unit/template-service.test.ts` (14 tests: auth guards, DRAFT check, compensating cleanup, concurrency guard, multi-batch reference preservation, preview generation).
+  - Added Playwright E2E spec in `tests/e2e/template-upload.spec.ts` testing batch detail template UI rendering, client validation, and graceful skipping when live storage credentials are not provided.
+  - Updated `.env.example` with clear documentation for server-only (`SUPABASE_URL`, `SUPABASE_SECRET_KEY`) and browser-safe (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`) storage variables.
 
 ## Verification Gate Results
+- `PASS` — `bun run storage:setup` (Verified live `certificate-templates` bucket: exists, public=false, file_size_limit=10485760, exact allowed MIME types)
 - `PASS` — `bun run prisma validate` (Prisma schema valid)
 - `PASS` — `bun run prisma generate` (Generated Prisma Client 7.10.0 to `generated/prisma`)
 - `PASS` — `bun run prisma migrate status` ("2 migrations found in prisma/migrations, Database schema is up to date!")
 - `PASS` — `bun run typecheck` (`tsc --noEmit` exited with code 0)
 - `PASS` — `bun run lint` (`eslint` exited with code 0, 0 errors, 0 warnings)
-- `PASS` — `bun run test` (`vitest run` exited with code 0: 5 test files passed, 29 tests passed)
-- `PASS` — `bun run test:e2e` (`playwright test` exited with code 0: 6 tests passed, 0 skipped, 0 failed; verified auth flows, complete batch CRUD lifecycle, edit name, soft delete, 404 on deleted batch, desktop and small mobile layout without horizontal overflow)
+- `PASS` — `bun run test` (`vitest run` exited with code 0: 7 test files passed, 64 tests passed)
+- `PASS` — `bun run test:e2e` (`playwright test` exited with code 0: all 8 tests passed, 0 skipped, 0 failed across auth, batch-crud, and template-upload)
 - `PASS` — `bun run build` (`next build` Turbopack exited with code 0, all routes generated cleanly)
+- `PASS` — Live Supabase Storage E2E (`tests/e2e/template-upload.spec.ts:104` passed with real Supabase Storage private bucket)
 
 ## Stack & Baseline Findings
 - **Runtime / Package Manager**: Bun v1.4.2 active (`bun.lock` present).
-- **Application Framework**: Next.js 16.3.6 (Turbopack, App Router) + React 19.2.8 + Tailwind CSS v4. Production build passes cleanly.
+- **Application Framework**: Next.js 16.3.6 (Turbopack, App Router) + React 19.2.8 + Tailwind CSS v4. Production build passes cleanly with `serverExternalPackages: ["sharp", "pdf-lib"]`.
 - **Authentication**: NextAuth 4.24.15 (Credentials provider, JWT session strategy, App Router native route handler, `proxy.ts` with `getToken`).
 - **Canonical Secret**: `AUTH_SECRET` configured for both NextAuth and Proxy token inspection.
 - **Password Hashing**: `bcryptjs` with work factor 12, 12-char minimum length enforcement, and 72-byte max boundary check.
 - **Authorization Guard**: `requireAdmin()` primitive in `lib/auth/guard.ts`.
+- **Storage Integration**: `@supabase/supabase-js@2.117.2` for signed upload URL generation and private bucket asset management.
 - **Database / Prisma Setup**:
   - Prisma ORM: `7.10.0`
   - Applied Migrations:
     1. `20260925154353_init_domain_foundation`
     2. `20260925224810_add_user_password_hash`
-  - Zero new migrations required for Phase 3.
+  - Zero new migrations required for Phase 4.
 
 ## Next Action
-Proceed to **Phase 4 — Template Upload & Storage**:
-1. Implement template upload surface (single-page PDF, PNG, JPG).
-2. Wire Supabase Storage bucket integration.
-3. Persist CertificateTemplate records and link to CertificateBatch.
+1. Proceed to **Phase 5 — Name Position Editor** according to `docs/PRD.md` and `docs/FSD.md`.
 
 ## Open Issues
-None for Phase 3.
+- None. Phase 4 is fully verified and accepted against live Supabase Storage and PostgreSQL infrastructure.
 
 ## History
+
+### 2026-09-26 — Phase 4 Live Storage Verification Remediation & Full Acceptance
+- Verified local live environment credentials for `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` without exposing secret values.
+- Executed `bun run storage:setup`: verified private `certificate-templates` bucket with `public: false`, `file_size_limit: 10485760` (10 MB), and exact allowed MIME types (`application/pdf`, `image/png`, `image/jpeg`).
+- Confirmed unauthenticated public HTTP requests to storage objects return 400 (access denied).
+- Updated `tests/e2e/template-upload.spec.ts` with direct `pg` pool and `@supabase/supabase-js` verification, eliminating ESM/server-only module boundary issues in Node test runner.
+- Resolved React 19 / ESLint `react-hooks/set-state-in-effect` rule in `TemplateSection` client component.
+- Executed full live Phase 4 E2E test against real Supabase Storage:
+  - ADMIN login and test-owned DRAFT batch creation.
+  - Signed upload initiation and direct browser upload to Supabase Storage signed upload URL.
+  - Server download, authoritative byte validation, metadata persistence, atomic assignment.
+  - Verification that batch status remains DRAFT.
+  - Secure signed private preview loading with valid `token` and correct Content-Type.
+  - Rejection of invalid multi-page PDF candidate with actionable error banner and server compensating cleanup.
+  - Verification that existing template remains intact after failed replacement.
+  - Successful replacement with valid PNG image, soft-deletion of old DB template record, and storage preservation of previous valid file bytes.
+  - Exact test-owned resource cleanup with zero broad bucket/database wiping.
+- Executed all canonical gates: `storage:setup` (PASS), `typecheck` (PASS), `lint` (PASS), `test` (PASS, 64 tests), `test:e2e` (PASS, 8 tests), `build` (PASS). Phase 4 fully accepted.
+
+### 2026-09-26 — Phase 4 Template Upload & Storage
+- Implemented complete template-upload foundation without proxying file bytes through Vercel/Next.js request bodies.
+- Established server storage client (`lib/storage/server.ts`) and client helper (`lib/storage/client.ts`).
+- Created bucket constants: private `certificate-templates` bucket, 10 MB technical limit, PDF/PNG/JPEG MIME coverage.
+- Implemented `scripts/setup-storage.ts` (`bun run storage:setup`) for idempotent bucket verification and mismatch detection.
+- Built byte validation in `lib/validations/template-file.ts` with `pdf-lib` (single page required, dimension extraction) and `sharp` (format and dimension inspection).
+- Built template service in `lib/templates.ts` enforcing `requireAdmin()`, DRAFT batch eligibility, unique non-overwrite storage paths (`{ upsert: false }`), optimistic concurrency checks, conditional soft-deletion of replaced templates, and compensating storage cleanup on failures.
+- Exposed authenticated route handlers in `app/api/admin/batches/[batchId]/template/{initiate,finalize,preview}/route.ts`.
+- Built `TemplateSection` component in `app/admin/batches/[batchId]/template-section.tsx` supporting dropzone, direct storage upload, progress indicator, signed preview (object/img), and replacement modal.
+- Configured Next.js 16 Turbopack with `serverExternalPackages: ["sharp", "pdf-lib"]` in `next.config.ts`.
+- Added 35 new unit tests (total: 64 tests across 7 test files, all passing).
+- Added Playwright E2E spec in `tests/e2e/template-upload.spec.ts`.
 
 ### 2026-09-26 — Phase 3 ADMIN Shell + Batch CRUD
 - Inspected existing `CertificateBatch` Prisma model and confirmed fields (`id`, `name`, `templateId`, `status`, `publishedAt`, `createdAt`, `updatedAt`, `deletedAt`); verified zero database migrations needed.
