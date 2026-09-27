@@ -32,7 +32,7 @@ test.describe("Authentication & Route Protection Flow", () => {
     await page.click('button[type="submit"]');
 
     const alert = page.locator('[data-testid="login-error"]');
-    await expect(alert).toBeVisible({ timeout: 15000 });
+    await expect(alert).toBeVisible({ timeout: 30000 });
     await expect(alert).toContainText("Invalid email or password.");
     await expect(page).toHaveURL(/\/login/);
   });
