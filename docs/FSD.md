@@ -580,17 +580,49 @@ Public search strictly prohibits exposing:
 - **Strict Scope Boundary**: Phase 12 is SEARCH-ONLY. No certificate preview (canvas/iframe) or certificate download (direct or presigned) is rendered. Those actions are exclusively deferred to Phase 13.
 
 
-## 17. Public Certificate Page
-Required:
-- certificate preview
-- download action
+## 17. Public Certificate Preview & Download (Phase 13)
 
-The certificate artwork is the dominant visual artifact. Surrounding UI remains minimal.
+### Routes
+- Detail page: `/certificates/[certificateId]` (Dynamic Server Component, App Router)
+- Download route: `/certificates/[certificateId]/download` (Dynamic Route Handler, App Router)
 
-Download:
-- no authentication
-- only for a current successful certificate in a published active batch
-- should resolve through a controlled application/storage access pattern consistent with storage privacy configuration
+### Public Eligibility Primitives
+A certificate is publicly accessible only when:
+- `Certificate`: `id == certificateId`, `deletedAt == null`, `publishedName != null`, `publishedFilePath != null`
+- `Participant`: `deletedAt == null`
+- `CertificateBatch`: `deletedAt == null`, `publishedAt != null`
+
+**Decoupled from Operational Lifecycle**:
+Public delivery does NOT require `batch.status == PUBLISHED`, `Certificate.status == GENERATED`, or `isStale == false`. During published participant replacement (where batch is `GENERATING` or `FAILED`), the existing published snapshot remains accessible until successful cutover.
+
+### Authoritative Snapshot Isolation
+Public delivery uses `Certificate.publishedName` and `Certificate.publishedFilePath` exclusively. The mutable `Participant.name` and `Certificate.generatedFilePath` are strictly decoupled from public viewing to prevent leaking uncommitted drafts or breaking live access during background replacement.
+
+### Storage Architecture & Vercel Payload Protection
+- The `generated-certificates` bucket remains strictly private (`public: false`).
+- Access is granted via server-generated, short-lived signed URLs (TTL: 300 seconds / 5 minutes).
+- Direct browser-to-Supabase Storage streaming: no PDF buffers are proxied through Next.js / Vercel Serverless Functions, avoiding the Vercel 4.5 MB response payload limit (`FUNCTION_RESPONSE_PAYLOAD_TOO_LARGE`).
+- **Storage-Path Privacy Contract**: `publishedFilePath` is server-only application/database data; it is never serialized in DTOs, HTML text, JSON payloads, logs, or client props. The signed URL exposed to the browser contains the temporary access token; the object path itself is not treated as a secret, but bare storage paths are never leaked. Service-role credentials never reach the browser.
+
+### Signing Concurrency & Double-Check Eligibility
+Both preview and download signing execute:
+1. Initial public eligibility lookup (`getPublishedCertificateById`).
+2. Generate short-lived signed URL.
+3. Perform lightweight final DB eligibility and snapshot recheck (`verifyPublishedCertificateSnapshot`).
+4. If the recheck fails (batch was unpublished or snapshot changed during signing), the newly created signed URL is discarded. The detail page invokes `notFound()`, and the download route returns HTTP 404.
+
+### Unpublish Semantics & Revocation Reality
+- Unpublish (`batch.publishedAt = null`) immediately prevents all NEW application-authorized access: `/certificates/[id]` and `/certificates/[id]/download` return 404 immediately, search results exclude them, and no new signed URLs are issued.
+- In-flight or already-issued signed URLs may remain usable until their 300-second TTL expires naturally. Supabase Storage does not provide instantaneous token revocation.
+
+### Download Route Specifications
+- Explicit HTTP 404 response (not HTML error) when unpublished or missing.
+- `Cache-Control: no-store` header on all download responses (302 redirects, 404, 503).
+- Derives a human-friendly sanitized filename from `publishedName` (`certificate-[slug].pdf`), passed via Supabase Storage `options.download` to set `Content-Disposition: attachment`.
+
+### Error Semantics
+- Nonexistent or unpublished records: 404 not-found.
+- Storage infrastructure errors: 503 / temporary unavailable error state (do NOT falsely report 404).
 
 ## 18. Authentication & Authorization
 Auth.js protects ADMIN behavior.

@@ -160,3 +160,32 @@ export async function uploadGeneratedCertificate(
     );
   }
 }
+
+/**
+ * Generates a short-lived signed read URL for a generated certificate in private storage.
+ * URL expires after the configured duration (default: 5 minutes / 300 seconds).
+ * When downloadFilename is provided, Supabase Storage sets the Content-Disposition
+ * attachment header with the specified filename.
+ */
+export async function createCertificateSignedReadUrl(
+  objectPath: string,
+  expiresInSeconds = SIGNED_PREVIEW_URL_EXPIRY_SECONDS,
+  downloadFilename?: string
+): Promise<string> {
+  const supabase = getServerStorageClient();
+
+  const options = downloadFilename ? { download: downloadFilename } : undefined;
+
+  const { data, error } = await supabase.storage
+    .from(GENERATED_CERTIFICATES_BUCKET)
+    .createSignedUrl(objectPath, expiresInSeconds, options);
+
+  if (error || !data?.signedUrl) {
+    throw new StorageOperationError(
+      `Failed to create certificate signed URL: ${error?.message || "Unknown error"}`
+    );
+  }
+
+  return data.signedUrl;
+}
+

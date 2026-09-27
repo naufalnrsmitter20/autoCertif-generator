@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import { searchPublishedCertificates } from "@/lib/search/service";
 import { SearchForm } from "./search-form";
 import type { Metadata } from "next";
@@ -129,12 +130,12 @@ export default async function HomePage({ searchParams }: PageProps) {
                         <li
                           key={c.certificateId}
                           data-testid={`search-result-item-${c.certificateId}`}
-                          className="flex items-center justify-between px-5 py-4 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                          className="flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
                         >
-                          <div className="space-y-0.5">
+                          <div className="space-y-0.5 min-w-0">
                             <span
                               data-testid="published-name"
-                              className="text-sm font-medium text-charcoal dark:text-zinc-100"
+                              className="block truncate text-sm font-medium text-charcoal dark:text-zinc-100"
                             >
                               {c.publishedName}
                             </span>
@@ -143,9 +144,18 @@ export default async function HomePage({ searchParams }: PageProps) {
                             </p>
                           </div>
 
-                          <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
-                            Published
-                          </span>
+                          <div className="flex shrink-0 items-center gap-2.5">
+                            <span className="hidden sm:inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+                              Published
+                            </span>
+                            <Link
+                              href={`/certificates/${c.certificateId}`}
+                              data-testid={`view-certificate-link-${c.certificateId}`}
+                              className="inline-flex min-h-[36px] items-center justify-center rounded-md bg-telkom-red px-3.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-telkom-red-dark focus:outline-none focus:ring-2 focus:ring-telkom-red focus:ring-offset-2"
+                            >
+                              View Certificate
+                            </Link>
+                          </div>
                         </li>
                       ))}
                     </ul>

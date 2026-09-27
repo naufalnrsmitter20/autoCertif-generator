@@ -1,8 +1,8 @@
 # AutoCertif — Project Log
 
 ## Current State
-**Phase:** Phase 12 — Public Certificate Search  
-**Status:** PHASE 12 COMPLETE & ACCEPTED — ALL CANONICAL GATES, 33 TEST FILES (370 TESTS), LIVE POSTGRESQL INTEGRATION, PLAYWRIGHT E2E, AND TURBOPACK PRODUCTION BUILD PASSED
+**Phase:** Phase 13 — Public Certificate Preview & Download  
+**Status:** PHASE 13 COMPLETE & ACCEPTED — ALL CANONICAL GATES, 37 TEST FILES (396 TESTS), LIVE STORAGE & POSTGRESQL INTEGRATION, PLAYWRIGHT E2E, AND TURBOPACK PRODUCTION BUILD PASSED
 
 ## Confirmed Product Decisions
 - Product: AutoCertif — `Certificate Generator` System
@@ -235,9 +235,10 @@ Engineering interpretation:
 - `PASS` — `bun run prisma migrate status` ("4 migrations found in prisma/migrations, Database schema is up to date!")
 - `PASS` — `bun run typecheck` (`tsc --noEmit` exited with code 0)
 - `PASS` — `bun run lint` (`eslint` exited with code 0, 0 errors, 1 pre-existing warning in verify script)
-- `PASS` — `bun run test` (`vitest run` exited with code 0: 33 test files passed, 370 unit/integration tests passed)
+- `PASS` — `bun run test` (`vitest run` exited with code 0: 37 test files passed, 396 unit/integration tests passed)
+- `PASS` — `bun run test:e2e tests/e2e/public-certificate.spec.ts` (`playwright test` exited with code 0: 2 passed)
 - `PASS` — `bun run test:e2e tests/e2e/public-search.spec.ts` (`playwright test` exited with code 0: 2 passed)
-- `PASS` — `bun run build` (`bun scripts/copy-pdf-worker.ts && next build` Turbopack exited with code 0, dynamic `/` route compiled cleanly)
+- `PASS` — `bun run build` (`bun scripts/copy-pdf-worker.ts && next build` Turbopack exited with code 0, dynamic `/certificates/[certificateId]` and `/certificates/[certificateId]/download` compiled cleanly)
 
 ## Stack & Baseline Findings
 - **Runtime / Package Manager**: Bun v1.4.2 active (`bun.lock` present).
@@ -258,15 +259,56 @@ Engineering interpretation:
     3. `20260926145009_add_generation_keys`
     4. `20260927033422_add_publication_snapshots`
   - Database schema is fully up to date.
+- **Public Certificate Delivery Architecture**:
+  - `generated-certificates` remains strictly private (`public: false`).
+  - Signed URL TTL: 300 seconds (5 minutes).
+  - Browser fetches directly from Supabase Storage; zero PDF bytes proxied through Vercel Functions.
+  - Published snapshot isolation: `publishedName` and `publishedFilePath` are authoritative.
+  - Double-check eligibility pattern on signing: prevents leaking signed URLs if unpublish occurred during signing.
 
 ## Next Action
-1. Await project owner sign-off on Phase 12.
-2. Proceed to **Phase 13 — Public Certificate Preview & Download** according to `docs/PRD.md` and `docs/FSD.md`. Do not begin Phase 13 until explicitly authorized.
+1. Await project owner sign-off on Phase 13.
+2. Proceed to **Phase 14 — Full E2E + Regression** according to `docs/PRD.md` and `docs/FSD.md`. Revisit full-suite Playwright multi-file harness stability comprehensively.
 
 ## Open Issues
 - **Production Font Asset Debt**: Real-template visual acceptance remains blocked until an approved production font asset and configuration are provisioned. (Test-only font is strictly isolated to test fixtures).
 
 ## History
+
+### 2026-09-27 — Phase 13 Public Certificate Preview & Download
+- Implemented Phase 13 adhering strictly to all approved mandatory user specifications and corrections:
+  1. **Public Certificate Domain & Eligibility Primitives**:
+     - Implemented `lib/public-certificates/types.ts`, `lib/public-certificates/filename.ts`, `lib/public-certificates/service.ts`, and `lib/public-certificates/index.ts`.
+     - Authoritative visibility gate: `Certificate.id == requestedId`, `Certificate.deletedAt == null`, `Certificate.publishedName != null`, `Certificate.publishedFilePath != null`, `Participant.deletedAt == null`, `CertificateBatch.deletedAt == null`, `CertificateBatch.publishedAt != null`.
+     - Decoupled from operational status: does **NOT** require `batch.status == PUBLISHED` (handles published replacement generation in `GENERATING` or `FAILED` states); does **NOT** require `Certificate.status == GENERATED` or `isStale == false`.
+     - Snapshot authority: exclusively queries and delivers `Certificate.publishedName` and `Certificate.publishedFilePath` (never mutable `Participant.name` or `generatedFilePath`).
+     - Added `withPrismaRetry` to guard against intermittent Supabase connection pooler DNS latency (`EAI_AGAIN`) on Windows.
+  2. **Storage Architecture & Path Privacy Contract**:
+     - `generated-certificates` bucket remains strictly private (`public: false`).
+     - Extended `lib/storage/server.ts` with `createCertificateSignedReadUrl(path, 300, filename)` issuing short-lived signed URLs (TTL: 300 seconds / 5 minutes).
+     - Browser fetches and downloads PDF directly from Supabase Storage; zero PDF bytes are proxied through Next.js / Vercel Serverless Functions, preventing `FUNCTION_RESPONSE_PAYLOAD_TOO_LARGE` crashes on certificates up to 20 MB.
+     - Storage-path privacy contract locked: `publishedFilePath` is server-only application/database data; bare object paths and service keys are never leaked as application data.
+  3. **Signing Concurrency & Double-Check Eligibility**:
+     - Implemented `verifyPublishedCertificateSnapshot` lightweight recheck called immediately after storage signing.
+     - If batch unpublish or snapshot cutover occurs during signing, the newly generated signed URL is discarded. The detail page triggers `notFound()` and the download route returns HTTP 404.
+  4. **Public Detail & Download Routes**:
+     - Search results in `app/page.tsx` now provide direct "View Certificate" navigation to `/certificates/[certificateId]`.
+     - Detail page (`app/certificates/[certificateId]/page.tsx`): dynamic Server Component rendering dominant native `<iframe>` PDF preview (`referrerPolicy="no-referrer"`), prominent participant name header, download button, and "Open PDF in New Tab" fallback.
+     - Public 404 (`not-found.tsx`) and error boundary (`error.tsx`) handle unavailable certificates and storage infrastructure errors cleanly.
+     - Download route handler (`app/certificates/[certificateId]/download/route.ts`): dynamic route with real-time double-check eligibility, sanitized filename (`certificate-[slug].pdf`), explicit HTTP 404 response on unavailable records, 302 redirect on success, and `Cache-Control: no-store` on all responses.
+  5. **Comprehensive Verification**:
+     - `tests/unit/download-filename.test.ts` (6 tests: casing, hyphenation, diacritic stripping, transliteration, path traversal prevention, truncation, fallbacks).
+     - `tests/unit/public-certificate-service.test.ts` (12 tests: all eligibility matrix scenarios A-Q against live Supabase PostgreSQL).
+     - `tests/unit/public-certificate-race.test.ts` (4 tests: in-flight unpublish and snapshot mutations during signing).
+     - `tests/unit/phase13-public-delivery-live.test.ts` (4 tests: live Supabase Storage integration verifying PDF magic bytes, Content-Type, Content-Disposition, and unpublish cutoff).
+     - `tests/e2e/public-certificate.spec.ts` (2 tests: unauthenticated search-to-detail-to-download flow, iframe preview, download redirect, unpublish revocation, mobile/desktop viewports).
+     - `tests/e2e/public-search.spec.ts` (2 tests: Phase 12 regression verification).
+     - All 37 unit/integration test files (396 tests) passed with 100% pass rate.
+     - Full Next.js Turbopack production build succeeded with 0 errors.
+  6. **Strict Scope & Deferred Debt**:
+     - Zero database migrations introduced.
+     - Zero new dependencies added.
+     - Full Playwright multi-file suite harness stability remains tracked and deferred to Phase 14 (Full E2E + Regression).
 
 ### 2026-09-27 — Phase 12 Public Certificate Search
 - Implemented Phase 12 adhering strictly to all approved mandatory user specifications and guardrails:
