@@ -139,6 +139,8 @@ export const CertificateScalarFieldEnum = {
   status: 'status',
   generationKey: 'generationKey',
   generatedFilePath: 'generatedFilePath',
+  publishedFilePath: 'publishedFilePath',
+  publishedName: 'publishedName',
   previewFilePath: 'previewFilePath',
   generationError: 'generationError',
   generatedAt: 'generatedAt',

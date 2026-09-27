@@ -38,6 +38,7 @@ export async function getBatchGenerationManagementData(
       name: true,
       status: true,
       currentGenerationKey: true,
+      publishedAt: true,
       updatedAt: true,
     },
   });
@@ -84,6 +85,8 @@ export async function getBatchGenerationManagementData(
         generatedAt: null,
         hasPreviousOutput: false,
         isStale: false,
+        publishedName: null,
+        publishedFilePath: null,
       };
     }
 
@@ -103,6 +106,8 @@ export async function getBatchGenerationManagementData(
       generatedAt: cert.generatedAt ? cert.generatedAt.toISOString() : null,
       hasPreviousOutput: cert.generatedFilePath !== null,
       isStale: cert.isStale,
+      publishedName: cert.publishedName,
+      publishedFilePath: cert.publishedFilePath,
     };
   });
 
@@ -112,6 +117,7 @@ export async function getBatchGenerationManagementData(
       name: batch.name,
       status: batch.status,
       currentGenerationKey: batch.currentGenerationKey,
+      publishedAt: batch.publishedAt ? batch.publishedAt.toISOString() : null,
       updatedAt: batch.updatedAt.toISOString(),
     },
     summary,
@@ -504,7 +510,7 @@ export async function recoverFailedBatchGeneration(
   // 1. Precondition checks on batch
   const batch = await prisma.certificateBatch.findFirst({
     where: { id: batchId, deletedAt: null },
-    select: { id: true, status: true, currentGenerationKey: true },
+    select: { id: true, status: true, currentGenerationKey: true, publishedAt: true },
   });
 
   if (!batch) {
@@ -543,8 +549,11 @@ export async function recoverFailedBatchGeneration(
   });
 
   // 3. If zero unfinished certificates remain: all had reached terminal state before batch failed.
-  // Safely reconcile batch status to GENERATED without fan-out.
+  // Safely reconcile batch status to PUBLISHED (if published) or GENERATED (if unpublished) without fan-out.
   if (unfinishedCerts.length === 0) {
+    const targetStatus =
+      batch.publishedAt != null ? BatchStatus.PUBLISHED : BatchStatus.GENERATED;
+
     const reconcileResult = await prisma.certificateBatch.updateMany({
       where: {
         id: batchId,
@@ -553,7 +562,7 @@ export async function recoverFailedBatchGeneration(
         deletedAt: null,
       },
       data: {
-        status: BatchStatus.GENERATED,
+        status: targetStatus,
       },
     });
 

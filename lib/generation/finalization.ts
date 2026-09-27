@@ -39,6 +39,7 @@ export async function checkAndFinalizeBatch(
       id: true,
       status: true,
       currentGenerationKey: true,
+      publishedAt: true,
     },
   });
 
@@ -76,7 +77,10 @@ export async function checkAndFinalizeBatch(
     };
   }
 
-  // 3. Atomically transition batch to GENERATED using dual conditional check
+  // 3. Atomically transition batch to PUBLISHED (if published) or GENERATED (if unpublished)
+  const targetStatus =
+    batch.publishedAt != null ? BatchStatus.PUBLISHED : BatchStatus.GENERATED;
+
   const updateResult = await prisma.certificateBatch.updateMany({
     where: {
       id: batchId,
@@ -85,7 +89,7 @@ export async function checkAndFinalizeBatch(
       deletedAt: null,
     },
     data: {
-      status: BatchStatus.GENERATED,
+      status: targetStatus,
     },
   });
 

@@ -10,6 +10,14 @@ import {
   recoverFailedBatchGeneration,
 } from "@/lib/generation/management";
 import {
+  editPublishedParticipantName,
+  retryPublishedReplacement,
+} from "@/lib/publication/service";
+import {
+  ConcurrentPublicationConflictError,
+  PublicationDomainError,
+} from "@/lib/publication/errors";
+import {
   GenerationPreflightError,
   ConcurrentGenerationConflictError,
   BatchNotEligibleForGenerationError,
@@ -202,6 +210,61 @@ export async function POST(
       });
     }
 
+    if (action === "edit-published-participant") {
+      const participantId = body.participantId;
+      const newName = body.newName;
+      if (!participantId || typeof participantId !== "string") {
+        return NextResponse.json(
+          { success: false, error: "participantId is required." },
+          { status: 400 }
+        );
+      }
+      if (!newName || typeof newName !== "string") {
+        return NextResponse.json(
+          { success: false, error: "newName is required." },
+          { status: 400 }
+        );
+      }
+
+      const result = await editPublishedParticipantName(
+        batchId,
+        participantId,
+        newName,
+        expectedCurrentGenerationKey
+      );
+
+      return NextResponse.json({
+        success: true,
+        message: `Published participant replacement initiated for "${result.newName}".`,
+        generationKey: result.generationKey,
+        participantId: result.participantId,
+        newName: result.newName,
+      });
+    }
+
+    if (action === "retry-published-replacement") {
+      const participantId = body.participantId;
+      if (!participantId || typeof participantId !== "string") {
+        return NextResponse.json(
+          { success: false, error: "participantId is required." },
+          { status: 400 }
+        );
+      }
+
+      const result = await retryPublishedReplacement(
+        batchId,
+        participantId,
+        expectedCurrentGenerationKey
+      );
+
+      return NextResponse.json({
+        success: true,
+        message: "Retry replacement initiated.",
+        generationKey: result.generationKey,
+        participantId: result.participantId,
+      });
+    }
+
     return NextResponse.json(
       { success: false, error: `Invalid action "${action}".` },
       { status: 400 }
@@ -223,7 +286,10 @@ export async function POST(
 
     if (
       error instanceof ConcurrentGenerationConflictError ||
-      (error instanceof Error && error.name === "ConcurrentGenerationConflictError")
+      error instanceof ConcurrentPublicationConflictError ||
+      (error instanceof Error &&
+        (error.name === "ConcurrentGenerationConflictError" ||
+          error.name === "ConcurrentPublicationConflictError"))
     ) {
       return NextResponse.json(
         { success: false, error: (error as Error).message },
@@ -233,9 +299,12 @@ export async function POST(
 
     if (
       error instanceof GenerationPreflightError ||
-      (error instanceof Error && error.name === "GenerationPreflightError") ||
       error instanceof BatchNotEligibleForGenerationError ||
-      (error instanceof Error && error.name === "BatchNotEligibleForGenerationError")
+      error instanceof PublicationDomainError ||
+      (error instanceof Error &&
+        (error.name === "GenerationPreflightError" ||
+          error.name === "BatchNotEligibleForGenerationError" ||
+          error.name.endsWith("Error")))
     ) {
       return NextResponse.json(
         { success: false, error: (error as Error).message },

@@ -434,46 +434,87 @@ Use internal IDs in storage paths rather than raw participant names.
 
 Do not construct public storage URLs from unsanitized participant names.
 
-## 14. Safe Replacement / Published Edit
-When ADMIN edits the name of a participant that already has a published certificate:
+## 14. Safe Replacement / Published Edit (Established in Phase 11)
+
+When ADMIN edits the name of a participant that already has a published certificate, public availability must not drop or show intermediate broken states:
 
 ```text
-edit name
+ADMIN submits published name edit
 ↓
-mark certificate stale
+Server CAS verification on expectedCurrentGenerationKey
 ↓
-keep last successful published PDF active
+Atomic DB transaction:
+  - Participant.name = NEW_NAME
+  - Certificate.publishedName = OLD_NAME (preserved)
+  - Certificate.publishedFilePath = OLD_FILE (preserved)
+  - Certificate.status = PENDING, isStale = true, generationKey = freshKey
+  - Batch.status = GENERATING, currentGenerationKey = freshKey, publishedAt = UNCHANGED
 ↓
-generate replacement
-   ├─ success → atomically point current record to new output
-   └─ failure → keep previous published output and show ADMIN failure
+Inngest background job renders replacement
+   ├─ SUCCESS & batch.publishedAt != null:
+   │    - Certificate.status = GENERATED
+   │    - Certificate.generatedFilePath = NEW_FILE
+   │    - Certificate.isStale = false
+   │    - Certificate.publishedName = NEW_NAME (atomic cutover)
+   │    - Certificate.publishedFilePath = NEW_FILE (atomic cutover)
+   │    - Batch returns to status = PUBLISHED
+   │
+   ├─ SUCCESS & batch.publishedAt == null (Unpublish-Race):
+   │    - Certificate.status = GENERATED
+   │    - Certificate.generatedFilePath = NEW_FILE
+   │    - Certificate.isStale = false
+   │    - Snapshots NOT set, public visibility NOT resurrected
+   │    - Batch finalizes to status = GENERATED
+   │
+   └─ FAILURE:
+        - Certificate.status = FAILED
+        - Certificate.isStale = true
+        - Old published snapshot (publishedName & publishedFilePath) PRESERVED
+        - Batch returns to status = PUBLISHED (failed participant surfaced to ADMIN)
 ```
 
-Never replace the live file reference with a failed/incomplete output.
+### Invariants:
+1. **Decoupled Snapshot**: Public visibility is bound to `publishedName` and `publishedFilePath`, decoupling live public delivery from current worker generation state.
+2. **Narrow Mutation**: General participant add/delete and template reconfiguration remain strictly guarded to `DRAFT` batches. Only the dedicated published name edit mutation is permitted on published batches.
+3. **No File Overwrite**: New certificate generations use unique storage paths keyed by `generationKey`. Old storage files are never overwritten or deleted.
+4. **Failure Preservation**: If replacement generation fails (e.g. name fitting failure), the previously published certificate remains live and downloadable. Admin can retry via dedicated `retry-published-replacement`.
 
-Old files may be cleaned later; cleanup must not break the current published reference.
-
-## 15. Publishing
+## 15. Publishing & Unpublishing (Established in Phase 11)
 
 ### Batch Publish
-Publish is a batch-level action.
+Publish is a batch-level administrative operation.
 
 Preconditions:
-- template exists
-- batch has at least one successfully generated active certificate
+- Batch exists and is in `GENERATED` status with `publishedAt == null`
+- Template is configured and valid
+- At least one active participant certificate satisfies Eligibility Criteria:
+  - `status === GENERATED`
+  - `generatedFilePath !== null`
+  - `generatedAt !== null`
+  - `isStale === false`
+  - *(Note: does NOT require `generationKey === batch.currentGenerationKey` due to individual regeneration history)*
 
-If failures exist:
-- display failure count and names
-- successful certificates may still be published
-- failed certificates remain unavailable publicly
+Publishing Execution (Atomic Transaction):
+1. CAS check matches `batch.currentGenerationKey === expectedCurrentGenerationKey`.
+2. Computes current certificate eligibility.
+3. Rebuilds publication snapshot:
+   - Active eligible certificates have `publishedName = participant.name` and `publishedFilePath = certificate.generatedFilePath`.
+   - Ineligible active certificates (FAILED or `isStale == true`) have `publishedName = null` and `publishedFilePath = null` (Republish Snapshot Hygiene).
+4. Sets `batch.publishedAt = NOW()` and `batch.status = PUBLISHED`.
 
-Publishing sets batch public state and makes eligible generated certificates searchable.
+Preflight Review:
+- ADMIN views preflight summary before confirming: total participants, eligible count, ineligible count, and names of failed participants that will remain unavailable publicly.
+- Eligible certificates can be published without waiting for failed ones.
 
-### Unpublish
-Unpublishing:
-- removes all certificates in the batch from public search
-- makes direct application certificate routes unavailable/not-found
-- does not delete generated files or ADMIN records
+### Immediate Unpublish Kill-Switch
+Unpublishing provides an immediate, authoritative visibility kill-switch:
+- Sets `batch.publishedAt = null` immediately in database.
+- If operational status is `PUBLISHED`, transitions batch to `GENERATED`.
+- If operational status is `GENERATING` or `FAILED`, preserves operational status.
+- Zero storage objects in Supabase Storage are deleted.
+- Zero participant or certificate records in PostgreSQL are deleted.
+- Public search and download routes check `batch.publishedAt != null`, instantly cutting off public access.
+- Batch can be safely republished at any time.
 
 ## 16. Public Search
 Search input: participant name only.

@@ -9,6 +9,8 @@ export interface ManagementCertificateRow {
   generatedAt: string | null;
   hasPreviousOutput: boolean;
   isStale: boolean;
+  publishedName: string | null;
+  publishedFilePath: string | null;
 }
 
 export interface BatchGenerationManagementData {
@@ -17,6 +19,7 @@ export interface BatchGenerationManagementData {
     name: string;
     status: BatchStatus;
     currentGenerationKey: string | null;
+    publishedAt: string | null;
     updatedAt: string;
   };
   summary: {

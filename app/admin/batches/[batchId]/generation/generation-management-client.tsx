@@ -6,6 +6,9 @@ import { useRouter } from "next/navigation";
 import { BatchStatusBadge } from "@/components/batch-status-badge";
 import { CertificateStatusBadge } from "@/components/certificate-status-badge";
 import { formatDisplayDate } from "@/lib/date";
+import { PublishConfirmDialog } from "@/components/publish-confirm-dialog";
+import { UnpublishConfirmDialog } from "@/components/unpublish-confirm-dialog";
+import { EditPublishedParticipantDialog } from "@/components/edit-published-participant-dialog";
 import type {
   BatchGenerationManagementData,
   ManagementCertificateRow,
@@ -42,9 +45,13 @@ export function GenerationManagementClient({
   const [filterTab, setFilterTab] = useState<FilterTab>("ALL");
   const [isConfirmRegenBatchOpen, setIsConfirmRegenBatchOpen] = useState(false);
   const [activeActionParticipantId, setActiveActionParticipantId] = useState<string | null>(null);
+  const [isPublishDialogOpen, setIsPublishDialogOpen] = useState(false);
+  const [isUnpublishDialogOpen, setIsUnpublishDialogOpen] = useState(false);
+  const [editingParticipant, setEditingParticipant] = useState<ManagementCertificateRow | null>(null);
 
   const { batch, summary, participants } = initialData;
   const isGenerating = batch.status === "GENERATING";
+  const isBatchPublished = batch.publishedAt !== null;
 
   // Auto-polling: poll every 3 seconds only while batch is GENERATING
   useEffect(() => {
@@ -76,7 +83,12 @@ export function GenerationManagementClient({
   }, [participants, filterTab]);
 
   const handleAction = async (
-    action: "retry-participant" | "regenerate-participant" | "regenerate-batch" | "recover-batch",
+    action:
+      | "retry-participant"
+      | "regenerate-participant"
+      | "regenerate-batch"
+      | "recover-batch"
+      | "retry-published-replacement",
     participantId?: string
   ) => {
     setErrorMessage(null);
@@ -140,7 +152,33 @@ export function GenerationManagementClient({
             </p>
           </div>
           <div className="flex items-center gap-3">
+            {isBatchPublished && (
+              <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                ● Published
+              </span>
+            )}
             <BatchStatusBadge status={batch.status} />
+            {isBatchPublished ? (
+              <button
+                type="button"
+                data-testid="unpublish-batch-header-button"
+                disabled={isPending}
+                onClick={() => setIsUnpublishDialogOpen(true)}
+                className="inline-flex min-h-[36px] items-center justify-center rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 transition-colors cursor-pointer"
+              >
+                Unpublish
+              </button>
+            ) : batch.status === "GENERATED" ? (
+              <button
+                type="button"
+                data-testid="publish-batch-header-button"
+                disabled={isPending || isGenerating}
+                onClick={() => setIsPublishDialogOpen(true)}
+                className="inline-flex min-h-[36px] items-center justify-center rounded-md bg-telkom-red hover:bg-telkom-red-dark px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs focus:outline-none focus:ring-2 focus:ring-telkom-red transition-colors cursor-pointer"
+              >
+                Publish Batch
+              </button>
+            ) : null}
           </div>
         </div>
       </div>
@@ -370,6 +408,14 @@ export function GenerationManagementClient({
                     batch.status === "GENERATED" &&
                     p.certificateStatus === "GENERATED" &&
                     !isGenerating;
+                  const canEditPublishedName =
+                    (batch.status === "PUBLISHED" || isBatchPublished) &&
+                    !isGenerating;
+                  const canRetryPublishedReplacement =
+                    (batch.status === "PUBLISHED" || isBatchPublished) &&
+                    p.certificateStatus === "FAILED" &&
+                    p.isStale &&
+                    !isGenerating;
 
                   return (
                     <tr
@@ -379,7 +425,18 @@ export function GenerationManagementClient({
                     >
                       {/* Name */}
                       <td className="px-4 py-3 font-medium text-zinc-900 dark:text-zinc-100">
-                        {p.name}
+                        <div>{p.name}</div>
+                        {p.publishedName && (
+                          <div
+                            data-testid={`published-name-subtext-${p.participantId}`}
+                            className="text-[11px] text-zinc-500 font-normal mt-0.5"
+                          >
+                            Published as: <span className={`font-semibold ${p.publishedName !== p.name ? "text-amber-700 dark:text-amber-400" : "text-zinc-700 dark:text-zinc-300"}`}>&quot;{p.publishedName}&quot;</span>
+                            {p.publishedName !== p.name && (
+                              <span className="ml-1.5 text-[10px] text-amber-600 dark:text-amber-400 font-medium">(Update pending)</span>
+                            )}
+                          </div>
+                        )}
                       </td>
 
                       {/* Status */}
@@ -424,33 +481,59 @@ export function GenerationManagementClient({
 
                       {/* Action Button */}
                       <td className="px-4 py-3 text-right whitespace-nowrap">
-                        {canRetry && (
-                          <button
-                            type="button"
-                            data-testid={`retry-button-${p.participantId}`}
-                            disabled={isPending || isGenerating}
-                            onClick={() => handleAction("retry-participant", p.participantId)}
-                            className="inline-flex min-h-[32px] items-center justify-center rounded border border-rose-300 bg-white px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:bg-zinc-800 dark:text-rose-400 dark:hover:bg-rose-950/40 transition-colors disabled:opacity-50 cursor-pointer"
-                          >
-                            {isRowPending ? "Retrying..." : "Retry"}
-                          </button>
-                        )}
+                        <div className="flex items-center justify-end gap-1.5">
+                          {canRetry && (
+                            <button
+                              type="button"
+                              data-testid={`retry-button-${p.participantId}`}
+                              disabled={isPending || isGenerating}
+                              onClick={() => handleAction("retry-participant", p.participantId)}
+                              className="inline-flex min-h-[32px] items-center justify-center rounded border border-rose-300 bg-white px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:bg-zinc-800 dark:text-rose-400 dark:hover:bg-rose-950/40 transition-colors disabled:opacity-50 cursor-pointer"
+                            >
+                              {isRowPending ? "Retrying..." : "Retry"}
+                            </button>
+                          )}
 
-                        {canRegenerate && (
-                          <button
-                            type="button"
-                            data-testid={`regenerate-button-${p.participantId}`}
-                            disabled={isPending || isGenerating}
-                            onClick={() => handleAction("regenerate-participant", p.participantId)}
-                            className="inline-flex min-h-[32px] items-center justify-center rounded border border-zinc-300 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 cursor-pointer"
-                          >
-                            {isRowPending ? "Regenerating..." : "Regenerate"}
-                          </button>
-                        )}
+                          {canRegenerate && (
+                            <button
+                              type="button"
+                              data-testid={`regenerate-button-${p.participantId}`}
+                              disabled={isPending || isGenerating}
+                              onClick={() => handleAction("regenerate-participant", p.participantId)}
+                              className="inline-flex min-h-[32px] items-center justify-center rounded border border-zinc-300 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 cursor-pointer"
+                            >
+                              {isRowPending ? "Regenerating..." : "Regenerate"}
+                            </button>
+                          )}
 
-                        {!canRetry && !canRegenerate && (
-                          <span className="text-zinc-400 text-xs">—</span>
-                        )}
+                          {canRetryPublishedReplacement && (
+                            <button
+                              type="button"
+                              data-testid={`retry-replacement-button-${p.participantId}`}
+                              disabled={isPending || isGenerating}
+                              onClick={() => handleAction("retry-published-replacement", p.participantId)}
+                              className="inline-flex min-h-[32px] items-center justify-center rounded border border-rose-300 bg-white px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:bg-zinc-800 dark:text-rose-400 dark:hover:bg-rose-950/40 transition-colors disabled:opacity-50 cursor-pointer"
+                            >
+                              {isRowPending ? "Retrying..." : "Retry Replacement"}
+                            </button>
+                          )}
+
+                          {canEditPublishedName && (
+                            <button
+                              type="button"
+                              data-testid={`edit-published-button-${p.participantId}`}
+                              disabled={isPending || isGenerating}
+                              onClick={() => setEditingParticipant(p)}
+                              className="inline-flex min-h-[32px] items-center justify-center rounded border border-zinc-300 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 cursor-pointer"
+                            >
+                              Edit Name
+                            </button>
+                          )}
+
+                          {!canRetry && !canRegenerate && !canEditPublishedName && !canRetryPublishedReplacement && (
+                            <span className="text-zinc-400 text-xs">—</span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -460,6 +543,36 @@ export function GenerationManagementClient({
           </table>
         </div>
       </div>
+
+      {/* Publish & Unpublish Dialogs */}
+      <PublishConfirmDialog
+        batchId={batch.id}
+        expectedCurrentGenerationKey={batch.currentGenerationKey}
+        isOpen={isPublishDialogOpen}
+        onClose={() => setIsPublishDialogOpen(false)}
+        onSuccess={() => router.refresh()}
+      />
+
+      <UnpublishConfirmDialog
+        batchId={batch.id}
+        isOpen={isUnpublishDialogOpen}
+        onClose={() => setIsUnpublishDialogOpen(false)}
+        onSuccess={() => router.refresh()}
+      />
+
+      {/* Edit Published Participant Dialog */}
+      {editingParticipant && (
+        <EditPublishedParticipantDialog
+          batchId={batch.id}
+          participantId={editingParticipant.participantId}
+          currentName={editingParticipant.name}
+          publishedName={editingParticipant.publishedName}
+          expectedCurrentGenerationKey={batch.currentGenerationKey}
+          isOpen={Boolean(editingParticipant)}
+          onClose={() => setEditingParticipant(null)}
+          onSuccess={() => router.refresh()}
+        />
+      )}
     </div>
   );
 }

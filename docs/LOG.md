@@ -1,8 +1,8 @@
 # AutoCertif — Project Log
 
 ## Current State
-**Phase:** Phase 10 — Generation Management  
-**Status:** PHASE 10 COMPLETE & ACCEPTED — ALL CANONICAL GATES, 25 UNIT/INTEGRATION TEST FILES (302 TESTS), LIVE POSTGRES/SUPABASE INTEGRATION, PLAYWRIGHT E2E, AND PRODUCTION BUILD PASSED
+**Phase:** Phase 11 — Safe Published Update + Batch Publish / Unpublish  
+**Status:** PHASE 11 COMPLETE & ACCEPTED — ALL CANONICAL GATES, 29 UNIT/INTEGRATION TEST FILES (341 TESTS), LIVE POSTGRES/SUPABASE STORAGE INTEGRATION, PLAYWRIGHT E2E, AND PRODUCTION BUILD PASSED
 
 ## Confirmed Product Decisions
 - Product: AutoCertif — `Certificate Generator` System
@@ -232,12 +232,12 @@ Engineering interpretation:
 ## Verification Gate Results
 - `PASS` — `bun run prisma validate` (Prisma schema valid)
 - `PASS` — `bun run prisma generate` (Generated Prisma Client 7.10.0 to `generated/prisma`)
-- `PASS` — `bun run prisma migrate status` ("3 migrations found in prisma/migrations, Database schema is up to date!")
+- `PASS` — `bun run prisma migrate status` ("4 migrations found in prisma/migrations, Database schema is up to date!")
 - `PASS` — `bun run typecheck` (`tsc --noEmit` exited with code 0)
 - `PASS` — `bun run lint` (`eslint` exited with code 0, 0 errors, 1 pre-existing warning in verify script)
-- `PASS` — `bun run test` (`vitest run` exited with code 0: 23 test files passed, 284 unit/integration tests passed)
-- `PASS` — `bun run test:e2e` (`playwright test` exited with code 0: 14 passed, 0 failed, 0 skipped across all 6 spec files)
-- `PASS` — `bun run build` (`bun scripts/copy-pdf-worker.ts && next build` Turbopack exited with code 0, all routes generated cleanly, worker copied)
+- `PASS` — `bun run test` (`vitest run` exited with code 0: 29 test files passed, 341 unit/integration tests passed)
+- `PASS` — `bun run test:e2e tests/e2e/publication.spec.ts` (`playwright test` exited with code 0: 1 passed)
+- `PASS` — `bun run build` (`bun scripts/copy-pdf-worker.ts && next build` Turbopack exited with code 0 in 39.6s, all routes generated cleanly, worker copied)
 
 ## Stack & Baseline Findings
 - **Runtime / Package Manager**: Bun v1.4.2 active (`bun.lock` present).
@@ -256,16 +256,62 @@ Engineering interpretation:
     1. `20260925154353_init_domain_foundation`
     2. `20260925224810_add_user_password_hash`
     3. `20260926145009_add_generation_keys`
+    4. `20260927033422_add_publication_snapshots`
   - Database schema is fully up to date.
 
 ## Next Action
-1. Await project owner sign-off on Phase 10.
-2. Proceed to **Phase 11 — Publishing, Public Search & Certificate Download** according to `docs/PRD.md` and `docs/FSD.md`. Do not begin Phase 11 until explicitly authorized.
+1. Await project owner sign-off on Phase 11.
+2. Proceed to **Phase 12 — Public Name Search** according to `docs/PRD.md` and `docs/FSD.md`. Do not begin Phase 12 until explicitly authorized.
 
 ## Open Issues
 - **Production Font Asset Debt**: Real-template visual acceptance remains blocked until an approved production font asset and configuration are provisioned. (Test-only font is strictly isolated to test fixtures).
 
 ## History
+
+### 2026-09-27 — Phase 11 Safe Published Update + Batch Publish / Unpublish
+- Implemented Phase 11 adhering strictly to all 6 approved mandatory user guardrails:
+  1. **Publication Snapshot Migration**:
+     - Added `publishedName String?` and `publishedFilePath String?` to `Certificate` model in `prisma/schema.prisma`.
+     - Intentionally omitted `@@index([publishedName])` in Phase 11, deferring search index optimization to Phase 12.
+     - Generated and applied migration `20260927033422_add_publication_snapshots` to Supabase PostgreSQL without data loss.
+  2. **Republish Snapshot Rebuilding**:
+     - Inside the publish transaction, recomputed current certificate eligibility (`status == GENERATED`, `generatedFilePath != null`, `generatedAt != null`, `isStale == false`).
+     - Cleared publication snapshot fields for active certificates that are not currently eligible (preventing FAILED or stale certificates from resurrecting old snapshots).
+     - Set `publishedName = participant.name` and `publishedFilePath = generatedFilePath` for all currently eligible certificates.
+     - Atomically updated `batch.publishedAt = new Date()` and `batch.status = PUBLISHED`.
+  3. **Unpublish vs Replacement Race Safety**:
+     - Unpublish operates as an immediate visibility kill-switch: inside a transaction, sets `batch.publishedAt = null`, `batch.status = GENERATED`. Deletes zero objects from Supabase Storage.
+     - In worker finalization (`lib/inngest/functions/generate-participant.ts`), atomic cutover of publication snapshots only occurs if `batch.publishedAt != null`. If ADMIN unpublishes while generation is running, the worker updates the normal generated state/path and clears `isStale`, but does NOT recreate publication snapshots or set `publishedAt`.
+     - Publication-aware batch finalization (`checkAndFinalizeBatch`) returns `PUBLISHED` if `batch.publishedAt != null`, else `GENERATED`.
+     - Added dedicated race integration test in `tests/unit/unpublish-race.test.ts`.
+  4. **Narrow Published Participant Mutation**:
+     - Preserved Phase 6 DRAFT CRUD guards intact.
+     - Added dedicated `editPublishedParticipantName` endpoint and service operation with optimistic concurrency control (CAS) on `expectedCurrentGenerationKey`.
+     - Validates batch publication (`publishedAt != null`), participant/certificate active status, name normalization, and initializes safe replacement by allocating a fresh `generationKey`, setting certificate to `PENDING` with `isStale = true`, and preserving existing `publishedName` and `publishedFilePath` live until worker success.
+  5. **Decoupled Eligibility**:
+     - Verified preflight and publish eligibility require `status == GENERATED`, `generatedFilePath != null`, `generatedAt != null`, and `isStale == false` without requiring `generationKey == batch.currentGenerationKey`, ensuring individually regenerated certificates from Phase 10 retain valid publish eligibility.
+  6. **Admin UI Integration**:
+     - Created `PublishConfirmDialog` with live preflight summary (eligible count, total participants, non-blocking failure warnings) and confirmation CAS.
+     - Created `UnpublishConfirmDialog` confirming immediate unpublish kill-switch with clear reassurance of non-deletion of storage files.
+     - Created `EditPublishedParticipantDialog` in generation management allowing inline published name updates with instant background replacement triggering.
+     - Added Published badge, timestamp, and action buttons in batch detail and generation management headers.
+  7. **Strict Boundaries Preserved**:
+     - Zero Phase 12 public search endpoints or pages implemented.
+     - Zero Phase 13 public certificate download routes created.
+     - `generated-certificates` bucket remains strictly private.
+     - Production font asset remains tracked as NOT CONFIGURED debt.
+- Comprehensive Verification:
+  - `bun run typecheck`: PASS (0 errors).
+  - `bun run lint`: PASS (0 errors, 1 pre-existing warning).
+  - `bun run test`: PASS across all 29 test files (341 tests, 0 failures), including:
+    - `tests/unit/publication-service.test.ts` (16 tests)
+    - `tests/unit/published-edit.test.ts` (14 tests)
+    - `tests/unit/unpublish-race.test.ts` (1 test)
+    - `tests/unit/phase11-publication-live.test.ts` (6 tests against live Supabase PostgreSQL and Storage)
+    - `tests/unit/generation-finalization.test.ts` (9 tests)
+    - `tests/unit/generation-management.test.ts` (13 tests)
+  - `bun run test:e2e tests/e2e/publication.spec.ts`: PASS (1 passed).
+  - `bun run build`: PASS (Next.js production build succeeded with 0 errors).
 
 ### 2026-09-27 — Phase 10 Generation Management
 - Implemented Phase 10 adhering strictly to all 7 approved mandatory user corrections:

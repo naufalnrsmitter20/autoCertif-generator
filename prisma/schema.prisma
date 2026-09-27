@@ -109,6 +109,8 @@ model Certificate {
   status            CertificateStatus @default(PENDING)
   generationKey     String?
   generatedFilePath String?
+  publishedFilePath String?
+  publishedName     String?
   previewFilePath   String?
   generationError   String?
   generatedAt       DateTime?

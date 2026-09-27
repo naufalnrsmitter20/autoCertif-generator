@@ -138,4 +138,66 @@ describe("checkAndFinalizeBatch Race-Safe Finalization Helper", () => {
     expect(result.finalized).toBe(false);
     expect(result.reason).toBe("already_finalized");
   });
+
+  it("finalizes batch to PUBLISHED when publishedAt is set (published replacement)", async () => {
+    vi.mocked(prisma.certificateBatch.findFirst).mockResolvedValue({
+      id: batchId,
+      status: BatchStatus.GENERATING,
+      currentGenerationKey: generationKey,
+      publishedAt: new Date("2026-09-27T00:00:00Z"),
+    } as any);
+
+    vi.mocked(prisma.certificate.count).mockResolvedValue(0);
+    vi.mocked(prisma.certificateBatch.updateMany).mockResolvedValue({ count: 1 });
+
+    const result = await checkAndFinalizeBatch(batchId, generationKey);
+    expect(result).toEqual({
+      finalized: true,
+      reason: "finalized",
+      pendingCount: 0,
+    });
+
+    expect(prisma.certificateBatch.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: batchId,
+        status: BatchStatus.GENERATING,
+        currentGenerationKey: generationKey,
+        deletedAt: null,
+      },
+      data: {
+        status: BatchStatus.PUBLISHED,
+      },
+    });
+  });
+
+  it("finalizes batch to GENERATED when publishedAt is null", async () => {
+    vi.mocked(prisma.certificateBatch.findFirst).mockResolvedValue({
+      id: batchId,
+      status: BatchStatus.GENERATING,
+      currentGenerationKey: generationKey,
+      publishedAt: null,
+    } as any);
+
+    vi.mocked(prisma.certificate.count).mockResolvedValue(0);
+    vi.mocked(prisma.certificateBatch.updateMany).mockResolvedValue({ count: 1 });
+
+    const result = await checkAndFinalizeBatch(batchId, generationKey);
+    expect(result).toEqual({
+      finalized: true,
+      reason: "finalized",
+      pendingCount: 0,
+    });
+
+    expect(prisma.certificateBatch.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: batchId,
+        status: BatchStatus.GENERATING,
+        currentGenerationKey: generationKey,
+        deletedAt: null,
+      },
+      data: {
+        status: BatchStatus.GENERATED,
+      },
+    });
+  });
 });

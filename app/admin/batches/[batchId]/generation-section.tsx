@@ -3,6 +3,9 @@
 import { useState, useTransition, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { formatDisplayDate } from "@/lib/date";
+import { PublishConfirmDialog } from "@/components/publish-confirm-dialog";
+import { UnpublishConfirmDialog } from "@/components/unpublish-confirm-dialog";
 export type BatchStatus = "DRAFT" | "READY" | "GENERATING" | "GENERATED" | "PUBLISHED" | "FAILED";
 import type { BatchGenerationSummary } from "@/lib/batches";
 
@@ -12,6 +15,8 @@ interface GenerationSectionProps {
   hasTemplate: boolean;
   hasPlacement: boolean;
   participantCount: number;
+  publishedAt?: Date | string | null;
+  currentGenerationKey?: string | null;
   summary?: BatchGenerationSummary;
 }
 
@@ -21,12 +26,18 @@ export function GenerationSection({
   hasTemplate,
   hasPlacement,
   participantCount,
+  publishedAt,
+  currentGenerationKey,
   summary,
 }: GenerationSectionProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isPublishDialogOpen, setIsPublishDialogOpen] = useState(false);
+  const [isUnpublishDialogOpen, setIsUnpublishDialogOpen] = useState(false);
+
+  const isBatchPublished = publishedAt !== null && publishedAt !== undefined;
 
   // Poll for status updates while batch is actively GENERATING
   useEffect(() => {
@@ -199,9 +210,13 @@ export function GenerationSection({
           <div className="flex items-center gap-3 rounded-md bg-amber-50 p-4 border border-amber-200 dark:bg-amber-950/30 dark:border-amber-900">
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-amber-600 border-t-transparent" />
             <div className="text-sm text-amber-900 dark:text-amber-200">
-              <p className="font-semibold">Generation in progress...</p>
+              <p className="font-semibold">
+                {isBatchPublished ? "Updating published batch..." : "Generation in progress..."}
+              </p>
               <p className="text-xs text-amber-700 dark:text-amber-300">
-                Participants are rendering in the background. Status will refresh automatically.
+                {isBatchPublished
+                  ? "Participants are rendering in the background. Previously published certificates remain live."
+                  : "Participants are rendering in the background. Status will refresh automatically."}
               </p>
             </div>
           </div>
@@ -255,8 +270,8 @@ export function GenerationSection({
         </div>
       )}
 
-      {/* GENERATED STATE: Completed summary */}
-      {batchStatus === "GENERATED" && summary && (
+      {/* GENERATED / PUBLISHED STATE: Completed summary & publication actions */}
+      {(batchStatus === "GENERATED" || batchStatus === "PUBLISHED") && summary && (
         <div className="mt-4 space-y-3">
           <div className="grid grid-cols-2 gap-3 text-center sm:grid-cols-4">
             <div className="rounded border border-zinc-200 p-2 dark:border-zinc-800">
@@ -280,22 +295,60 @@ export function GenerationSection({
             <div className="rounded border border-zinc-200 p-2 dark:border-zinc-800">
               <span className="text-xs text-zinc-500">Status</span>
               <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400 mt-1">
-                Completed
+                {isBatchPublished ? "Published" : "Completed"}
               </p>
             </div>
           </div>
 
-          <div className="pt-2 flex items-center justify-between">
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              All participants reached terminal status.
-            </p>
-            <Link
-              href={`/admin/batches/${batchId}/generation`}
-              data-testid="manage-generation-link"
-              className="inline-flex min-h-[36px] items-center justify-center rounded-md bg-telkom-red hover:bg-telkom-red-dark px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs focus:outline-none focus:ring-2 focus:ring-telkom-red transition-colors"
-            >
-              Manage Generation &rarr;
-            </Link>
+          <div className="pt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              {isBatchPublished ? (
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                    ● Live / Published
+                  </span>
+                  {publishedAt && (
+                    <span className="text-xs text-zinc-500">
+                      Since {formatDisplayDate(new Date(publishedAt))}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  All participants reached terminal status.
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              {isBatchPublished ? (
+                <button
+                  type="button"
+                  data-testid="open-unpublish-dialog-button"
+                  onClick={() => setIsUnpublishDialogOpen(true)}
+                  className="inline-flex min-h-[36px] items-center justify-center rounded-md border border-zinc-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 transition-colors cursor-pointer"
+                >
+                  Unpublish
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  data-testid="open-publish-dialog-button"
+                  onClick={() => setIsPublishDialogOpen(true)}
+                  className="inline-flex min-h-[36px] items-center justify-center rounded-md bg-telkom-red hover:bg-telkom-red-dark px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs focus:outline-none focus:ring-2 focus:ring-telkom-red transition-colors cursor-pointer"
+                >
+                  Publish Batch
+                </button>
+              )}
+
+              <Link
+                href={`/admin/batches/${batchId}/generation`}
+                data-testid="manage-generation-link"
+                className="inline-flex min-h-[36px] items-center justify-center rounded-md border border-zinc-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 transition-colors"
+              >
+                Manage Generation &rarr;
+              </Link>
+            </div>
           </div>
         </div>
       )}
@@ -318,6 +371,22 @@ export function GenerationSection({
           </div>
         </div>
       )}
+
+      {/* Publish and Unpublish Confirmation Dialogs */}
+      <PublishConfirmDialog
+        batchId={batchId}
+        expectedCurrentGenerationKey={currentGenerationKey ?? null}
+        isOpen={isPublishDialogOpen}
+        onClose={() => setIsPublishDialogOpen(false)}
+        onSuccess={() => router.refresh()}
+      />
+
+      <UnpublishConfirmDialog
+        batchId={batchId}
+        isOpen={isUnpublishDialogOpen}
+        onClose={() => setIsUnpublishDialogOpen(false)}
+        onSuccess={() => router.refresh()}
+      />
     </div>
   );
 }

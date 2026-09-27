@@ -31,6 +31,8 @@ export type CertificateMinAggregateOutputType = {
   status: $Enums.CertificateStatus | null
   generationKey: string | null
   generatedFilePath: string | null
+  publishedFilePath: string | null
+  publishedName: string | null
   previewFilePath: string | null
   generationError: string | null
   generatedAt: Date | null
@@ -47,6 +49,8 @@ export type CertificateMaxAggregateOutputType = {
   status: $Enums.CertificateStatus | null
   generationKey: string | null
   generatedFilePath: string | null
+  publishedFilePath: string | null
+  publishedName: string | null
   previewFilePath: string | null
   generationError: string | null
   generatedAt: Date | null
@@ -63,6 +67,8 @@ export type CertificateCountAggregateOutputType = {
   status: number
   generationKey: number
   generatedFilePath: number
+  publishedFilePath: number
+  publishedName: number
   previewFilePath: number
   generationError: number
   generatedAt: number
@@ -81,6 +87,8 @@ export type CertificateMinAggregateInputType = {
   status?: true
   generationKey?: true
   generatedFilePath?: true
+  publishedFilePath?: true
+  publishedName?: true
   previewFilePath?: true
   generationError?: true
   generatedAt?: true
@@ -97,6 +105,8 @@ export type CertificateMaxAggregateInputType = {
   status?: true
   generationKey?: true
   generatedFilePath?: true
+  publishedFilePath?: true
+  publishedName?: true
   previewFilePath?: true
   generationError?: true
   generatedAt?: true
@@ -113,6 +123,8 @@ export type CertificateCountAggregateInputType = {
   status?: true
   generationKey?: true
   generatedFilePath?: true
+  publishedFilePath?: true
+  publishedName?: true
   previewFilePath?: true
   generationError?: true
   generatedAt?: true
@@ -202,6 +214,8 @@ export type CertificateGroupByOutputType = {
   status: $Enums.CertificateStatus
   generationKey: string | null
   generatedFilePath: string | null
+  publishedFilePath: string | null
+  publishedName: string | null
   previewFilePath: string | null
   generationError: string | null
   generatedAt: Date | null
@@ -239,6 +253,8 @@ export type CertificateWhereInput = {
   status?: Prisma.EnumCertificateStatusFilter<"Certificate"> | $Enums.CertificateStatus
   generationKey?: Prisma.StringNullableFilter<"Certificate"> | string | null
   generatedFilePath?: Prisma.StringNullableFilter<"Certificate"> | string | null
+  publishedFilePath?: Prisma.StringNullableFilter<"Certificate"> | string | null
+  publishedName?: Prisma.StringNullableFilter<"Certificate"> | string | null
   previewFilePath?: Prisma.StringNullableFilter<"Certificate"> | string | null
   generationError?: Prisma.StringNullableFilter<"Certificate"> | string | null
   generatedAt?: Prisma.DateTimeNullableFilter<"Certificate"> | Date | string | null
@@ -257,6 +273,8 @@ export type CertificateOrderByWithRelationInput = {
   status?: Prisma.SortOrder
   generationKey?: Prisma.SortOrderInput | Prisma.SortOrder
   generatedFilePath?: Prisma.SortOrderInput | Prisma.SortOrder
+  publishedFilePath?: Prisma.SortOrderInput | Prisma.SortOrder
+  publishedName?: Prisma.SortOrderInput | Prisma.SortOrder
   previewFilePath?: Prisma.SortOrderInput | Prisma.SortOrder
   generationError?: Prisma.SortOrderInput | Prisma.SortOrder
   generatedAt?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -279,6 +297,8 @@ export type CertificateWhereUniqueInput = Prisma.AtLeast<{
   status?: Prisma.EnumCertificateStatusFilter<"Certificate"> | $Enums.CertificateStatus
   generationKey?: Prisma.StringNullableFilter<"Certificate"> | string | null
   generatedFilePath?: Prisma.StringNullableFilter<"Certificate"> | string | null
+  publishedFilePath?: Prisma.StringNullableFilter<"Certificate"> | string | null
+  publishedName?: Prisma.StringNullableFilter<"Certificate"> | string | null
   previewFilePath?: Prisma.StringNullableFilter<"Certificate"> | string | null
   generationError?: Prisma.StringNullableFilter<"Certificate"> | string | null
   generatedAt?: Prisma.DateTimeNullableFilter<"Certificate"> | Date | string | null
@@ -297,6 +317,8 @@ export type CertificateOrderByWithAggregationInput = {
   status?: Prisma.SortOrder
   generationKey?: Prisma.SortOrderInput | Prisma.SortOrder
   generatedFilePath?: Prisma.SortOrderInput | Prisma.SortOrder
+  publishedFilePath?: Prisma.SortOrderInput | Prisma.SortOrder
+  publishedName?: Prisma.SortOrderInput | Prisma.SortOrder
   previewFilePath?: Prisma.SortOrderInput | Prisma.SortOrder
   generationError?: Prisma.SortOrderInput | Prisma.SortOrder
   generatedAt?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -319,6 +341,8 @@ export type CertificateScalarWhereWithAggregatesInput = {
   status?: Prisma.EnumCertificateStatusWithAggregatesFilter<"Certificate"> | $Enums.CertificateStatus
   generationKey?: Prisma.StringNullableWithAggregatesFilter<"Certificate"> | string | null
   generatedFilePath?: Prisma.StringNullableWithAggregatesFilter<"Certificate"> | string | null
+  publishedFilePath?: Prisma.StringNullableWithAggregatesFilter<"Certificate"> | string | null
+  publishedName?: Prisma.StringNullableWithAggregatesFilter<"Certificate"> | string | null
   previewFilePath?: Prisma.StringNullableWithAggregatesFilter<"Certificate"> | string | null
   generationError?: Prisma.StringNullableWithAggregatesFilter<"Certificate"> | string | null
   generatedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Certificate"> | Date | string | null
@@ -333,6 +357,8 @@ export type CertificateCreateInput = {
   status?: $Enums.CertificateStatus
   generationKey?: string | null
   generatedFilePath?: string | null
+  publishedFilePath?: string | null
+  publishedName?: string | null
   previewFilePath?: string | null
   generationError?: string | null
   generatedAt?: Date | string | null
@@ -351,6 +377,8 @@ export type CertificateUncheckedCreateInput = {
   status?: $Enums.CertificateStatus
   generationKey?: string | null
   generatedFilePath?: string | null
+  publishedFilePath?: string | null
+  publishedName?: string | null
   previewFilePath?: string | null
   generationError?: string | null
   generatedAt?: Date | string | null
@@ -365,6 +393,8 @@ export type CertificateUpdateInput = {
   status?: Prisma.EnumCertificateStatusFieldUpdateOperationsInput | $Enums.CertificateStatus
   generationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   generatedFilePath?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  publishedFilePath?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  publishedName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   previewFilePath?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   generationError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   generatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -383,6 +413,8 @@ export type CertificateUncheckedUpdateInput = {
   status?: Prisma.EnumCertificateStatusFieldUpdateOperationsInput | $Enums.CertificateStatus
   generationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   generatedFilePath?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  publishedFilePath?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  publishedName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   previewFilePath?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   generationError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   generatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -399,6 +431,8 @@ export type CertificateCreateManyInput = {
   status?: $Enums.CertificateStatus
   generationKey?: string | null
   generatedFilePath?: string | null
+  publishedFilePath?: string | null
+  publishedName?: string | null
   previewFilePath?: string | null
   generationError?: string | null
   generatedAt?: Date | string | null
@@ -413,6 +447,8 @@ export type CertificateUpdateManyMutationInput = {
   status?: Prisma.EnumCertificateStatusFieldUpdateOperationsInput | $Enums.CertificateStatus
   generationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   generatedFilePath?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  publishedFilePath?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  publishedName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   previewFilePath?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   generationError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   generatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -429,6 +465,8 @@ export type CertificateUncheckedUpdateManyInput = {
   status?: Prisma.EnumCertificateStatusFieldUpdateOperationsInput | $Enums.CertificateStatus
   generationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   generatedFilePath?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  publishedFilePath?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  publishedName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   previewFilePath?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   generationError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   generatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -465,6 +503,8 @@ export type CertificateCountOrderByAggregateInput = {
   status?: Prisma.SortOrder
   generationKey?: Prisma.SortOrder
   generatedFilePath?: Prisma.SortOrder
+  publishedFilePath?: Prisma.SortOrder
+  publishedName?: Prisma.SortOrder
   previewFilePath?: Prisma.SortOrder
   generationError?: Prisma.SortOrder
   generatedAt?: Prisma.SortOrder
@@ -481,6 +521,8 @@ export type CertificateMaxOrderByAggregateInput = {
   status?: Prisma.SortOrder
   generationKey?: Prisma.SortOrder
   generatedFilePath?: Prisma.SortOrder
+  publishedFilePath?: Prisma.SortOrder
+  publishedName?: Prisma.SortOrder
   previewFilePath?: Prisma.SortOrder
   generationError?: Prisma.SortOrder
   generatedAt?: Prisma.SortOrder
@@ -497,6 +539,8 @@ export type CertificateMinOrderByAggregateInput = {
   status?: Prisma.SortOrder
   generationKey?: Prisma.SortOrder
   generatedFilePath?: Prisma.SortOrder
+  publishedFilePath?: Prisma.SortOrder
+  publishedName?: Prisma.SortOrder
   previewFilePath?: Prisma.SortOrder
   generationError?: Prisma.SortOrder
   generatedAt?: Prisma.SortOrder
@@ -593,6 +637,8 @@ export type CertificateCreateWithoutBatchInput = {
   status?: $Enums.CertificateStatus
   generationKey?: string | null
   generatedFilePath?: string | null
+  publishedFilePath?: string | null
+  publishedName?: string | null
   previewFilePath?: string | null
   generationError?: string | null
   generatedAt?: Date | string | null
@@ -609,6 +655,8 @@ export type CertificateUncheckedCreateWithoutBatchInput = {
   status?: $Enums.CertificateStatus
   generationKey?: string | null
   generatedFilePath?: string | null
+  publishedFilePath?: string | null
+  publishedName?: string | null
   previewFilePath?: string | null
   generationError?: string | null
   generatedAt?: Date | string | null
@@ -654,6 +702,8 @@ export type CertificateScalarWhereInput = {
   status?: Prisma.EnumCertificateStatusFilter<"Certificate"> | $Enums.CertificateStatus
   generationKey?: Prisma.StringNullableFilter<"Certificate"> | string | null
   generatedFilePath?: Prisma.StringNullableFilter<"Certificate"> | string | null
+  publishedFilePath?: Prisma.StringNullableFilter<"Certificate"> | string | null
+  publishedName?: Prisma.StringNullableFilter<"Certificate"> | string | null
   previewFilePath?: Prisma.StringNullableFilter<"Certificate"> | string | null
   generationError?: Prisma.StringNullableFilter<"Certificate"> | string | null
   generatedAt?: Prisma.DateTimeNullableFilter<"Certificate"> | Date | string | null
@@ -668,6 +718,8 @@ export type CertificateCreateWithoutParticipantInput = {
   status?: $Enums.CertificateStatus
   generationKey?: string | null
   generatedFilePath?: string | null
+  publishedFilePath?: string | null
+  publishedName?: string | null
   previewFilePath?: string | null
   generationError?: string | null
   generatedAt?: Date | string | null
@@ -683,6 +735,8 @@ export type CertificateUncheckedCreateWithoutParticipantInput = {
   status?: $Enums.CertificateStatus
   generationKey?: string | null
   generatedFilePath?: string | null
+  publishedFilePath?: string | null
+  publishedName?: string | null
   previewFilePath?: string | null
   generationError?: string | null
   generatedAt?: Date | string | null
@@ -713,6 +767,8 @@ export type CertificateUpdateWithoutParticipantInput = {
   status?: Prisma.EnumCertificateStatusFieldUpdateOperationsInput | $Enums.CertificateStatus
   generationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   generatedFilePath?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  publishedFilePath?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  publishedName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   previewFilePath?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   generationError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   generatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -728,6 +784,8 @@ export type CertificateUncheckedUpdateWithoutParticipantInput = {
   status?: Prisma.EnumCertificateStatusFieldUpdateOperationsInput | $Enums.CertificateStatus
   generationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   generatedFilePath?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  publishedFilePath?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  publishedName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   previewFilePath?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   generationError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   generatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -743,6 +801,8 @@ export type CertificateCreateManyBatchInput = {
   status?: $Enums.CertificateStatus
   generationKey?: string | null
   generatedFilePath?: string | null
+  publishedFilePath?: string | null
+  publishedName?: string | null
   previewFilePath?: string | null
   generationError?: string | null
   generatedAt?: Date | string | null
@@ -757,6 +817,8 @@ export type CertificateUpdateWithoutBatchInput = {
   status?: Prisma.EnumCertificateStatusFieldUpdateOperationsInput | $Enums.CertificateStatus
   generationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   generatedFilePath?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  publishedFilePath?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  publishedName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   previewFilePath?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   generationError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   generatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -773,6 +835,8 @@ export type CertificateUncheckedUpdateWithoutBatchInput = {
   status?: Prisma.EnumCertificateStatusFieldUpdateOperationsInput | $Enums.CertificateStatus
   generationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   generatedFilePath?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  publishedFilePath?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  publishedName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   previewFilePath?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   generationError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   generatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -788,6 +852,8 @@ export type CertificateUncheckedUpdateManyWithoutBatchInput = {
   status?: Prisma.EnumCertificateStatusFieldUpdateOperationsInput | $Enums.CertificateStatus
   generationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   generatedFilePath?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  publishedFilePath?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  publishedName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   previewFilePath?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   generationError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   generatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -806,6 +872,8 @@ export type CertificateSelect<ExtArgs extends runtime.Types.Extensions.InternalA
   status?: boolean
   generationKey?: boolean
   generatedFilePath?: boolean
+  publishedFilePath?: boolean
+  publishedName?: boolean
   previewFilePath?: boolean
   generationError?: boolean
   generatedAt?: boolean
@@ -824,6 +892,8 @@ export type CertificateSelectCreateManyAndReturn<ExtArgs extends runtime.Types.E
   status?: boolean
   generationKey?: boolean
   generatedFilePath?: boolean
+  publishedFilePath?: boolean
+  publishedName?: boolean
   previewFilePath?: boolean
   generationError?: boolean
   generatedAt?: boolean
@@ -842,6 +912,8 @@ export type CertificateSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.E
   status?: boolean
   generationKey?: boolean
   generatedFilePath?: boolean
+  publishedFilePath?: boolean
+  publishedName?: boolean
   previewFilePath?: boolean
   generationError?: boolean
   generatedAt?: boolean
@@ -860,6 +932,8 @@ export type CertificateSelectScalar = {
   status?: boolean
   generationKey?: boolean
   generatedFilePath?: boolean
+  publishedFilePath?: boolean
+  publishedName?: boolean
   previewFilePath?: boolean
   generationError?: boolean
   generatedAt?: boolean
@@ -869,7 +943,7 @@ export type CertificateSelectScalar = {
   deletedAt?: boolean
 }
 
-export type CertificateOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "participantId" | "batchId" | "status" | "generationKey" | "generatedFilePath" | "previewFilePath" | "generationError" | "generatedAt" | "isStale" | "createdAt" | "updatedAt" | "deletedAt", ExtArgs["result"]["certificate"]>
+export type CertificateOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "participantId" | "batchId" | "status" | "generationKey" | "generatedFilePath" | "publishedFilePath" | "publishedName" | "previewFilePath" | "generationError" | "generatedAt" | "isStale" | "createdAt" | "updatedAt" | "deletedAt", ExtArgs["result"]["certificate"]>
 export type CertificateInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   batch?: boolean | Prisma.CertificateBatchDefaultArgs<ExtArgs>
   participant?: boolean | Prisma.ParticipantDefaultArgs<ExtArgs>
@@ -896,6 +970,8 @@ export type $CertificatePayload<ExtArgs extends runtime.Types.Extensions.Interna
     status: $Enums.CertificateStatus
     generationKey: string | null
     generatedFilePath: string | null
+    publishedFilePath: string | null
+    publishedName: string | null
     previewFilePath: string | null
     generationError: string | null
     generatedAt: Date | null
@@ -1334,6 +1410,8 @@ export interface CertificateFieldRefs {
   readonly status: Prisma.FieldRef<"Certificate", 'CertificateStatus'>
   readonly generationKey: Prisma.FieldRef<"Certificate", 'String'>
   readonly generatedFilePath: Prisma.FieldRef<"Certificate", 'String'>
+  readonly publishedFilePath: Prisma.FieldRef<"Certificate", 'String'>
+  readonly publishedName: Prisma.FieldRef<"Certificate", 'String'>
   readonly previewFilePath: Prisma.FieldRef<"Certificate", 'String'>
   readonly generationError: Prisma.FieldRef<"Certificate", 'String'>
   readonly generatedAt: Prisma.FieldRef<"Certificate", 'DateTime'>

@@ -114,6 +114,8 @@ export default async function BatchDetailPage({
         hasTemplate={Boolean(batch.template)}
         hasPlacement={Boolean(batch.template?.namePlacement)}
         participantCount={batch._count?.participants ?? 0}
+        publishedAt={batch.publishedAt}
+        currentGenerationKey={batch.currentGenerationKey}
         summary={summary}
       />
 

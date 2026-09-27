@@ -246,6 +246,23 @@ export const generateParticipant = inngest.createFunction(
     // Step 3: Finalize certificate on success ONLY (Correction #7: explicit branching)
     if (renderResult.outcome === "success") {
       await step.run("finalize-certificate-record", async () => {
+        // Publication-aware cutover guard (Guardrail #3)
+        const batch = await prisma.certificateBatch.findFirst({
+          where: { id: batchId, deletedAt: null },
+          select: { publishedAt: true },
+        });
+
+        const isPublished = batch?.publishedAt !== null;
+
+        let currentParticipantName: string | null = null;
+        if (isPublished) {
+          const participant = await prisma.participant.findFirst({
+            where: { id: participantId, batchId, deletedAt: null },
+            select: { name: true },
+          });
+          currentParticipantName = participant?.name ?? null;
+        }
+
         await prisma.certificate.updateMany({
           where: {
             id: certificateId,
@@ -260,6 +277,12 @@ export const generateParticipant = inngest.createFunction(
             generatedAt: new Date(renderResult.generatedAt),
             generationError: null,
             isStale: false,
+            ...(isPublished && currentParticipantName !== null
+              ? {
+                  publishedFilePath: renderResult.storagePath,
+                  publishedName: currentParticipantName,
+                }
+              : {}),
           },
         });
       });
