@@ -1,67 +1,159 @@
-import Image from "next/image";
+import { Suspense } from "react";
+import { searchPublishedCertificates } from "@/lib/search/service";
+import { SearchForm } from "./search-form";
+import type { Metadata } from "next";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Search Certificates — AutoCertif",
+  description: "Search and verify published certificates by participant name.",
+};
+
+interface PageProps {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}
+
+export default async function HomePage({ searchParams }: PageProps) {
+  const params = await searchParams;
+  const rawQ = params.q;
+  const query = typeof rawQ === "string" ? rawQ.trim() : "";
+
+  const searchResult = query.length > 0 ? await searchPublishedCertificates(query) : null;
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
+      {/* Top Header */}
+      <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4 sm:px-6">
+          <div className="flex items-center gap-2.5">
+            <div className="h-6 w-1.5 rounded-full bg-telkom-red" aria-hidden="true" />
+            <span className="text-lg font-bold tracking-tight text-charcoal dark:text-zinc-50">
+              AutoCertif
+            </span>
+          </div>
+          <span className="text-xs text-neutral-gray dark:text-zinc-400">
+            Certificate Search
+          </span>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </header>
+
+      {/* Main Content Area */}
+      <main className="mx-auto max-w-2xl px-4 py-12 sm:px-6">
+        <div className="space-y-8">
+          {/* Title and Intro */}
+          <div className="text-center space-y-2">
+            <h1
+              data-testid="public-search-title"
+              className="text-2xl font-bold tracking-tight text-charcoal sm:text-3xl dark:text-zinc-50"
+            >
+              Search Your Certificate
+            </h1>
+            <p className="text-sm text-neutral-gray dark:text-zinc-400">
+              Find published certificates by entering your participant name.
+            </p>
+          </div>
+
+          {/* Search Bar Container */}
+          <div className="rounded-lg border border-zinc-200 bg-white p-6 shadow-xs dark:border-zinc-800 dark:bg-zinc-900">
+            <Suspense fallback={<div className="h-10 animate-pulse bg-zinc-100 rounded dark:bg-zinc-800" />}>
+              <SearchForm key={query} initialQuery={query} />
+            </Suspense>
+          </div>
+
+          {/* Search Result States */}
+          <section aria-label="Search results" className="space-y-4">
+            {/* 1. INITIAL STATE: No search initiated */}
+            {!searchResult && (
+              <div
+                data-testid="search-initial-state"
+                className="rounded-lg border border-dashed border-zinc-200 p-8 text-center dark:border-zinc-800"
+              >
+                <p className="text-sm text-neutral-gray dark:text-zinc-400">
+                  Search for your certificate by participant name.
+                </p>
+              </div>
+            )}
+
+            {/* 2. EMPTY QUERY: Whitespace query submitted */}
+            {searchResult?.status === "empty_query" && (
+              <div
+                data-testid="search-empty-state"
+                className="rounded-lg border border-dashed border-zinc-200 p-8 text-center dark:border-zinc-800"
+              >
+                <p className="text-sm text-neutral-gray dark:text-zinc-400">
+                  Please enter a participant name to search.
+                </p>
+              </div>
+            )}
+
+            {/* 3. INVALID / OVERSIZED INPUT STATE */}
+            {searchResult?.status === "invalid_length" && (
+              <div
+                role="alert"
+                data-testid="search-invalid-length"
+                className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300"
+              >
+                {searchResult.message}
+              </div>
+            )}
+
+            {/* 4. SUCCESS: RESULTS OR NO RESULTS */}
+            {searchResult?.status === "success" && (
+              <>
+                {searchResult.results.length === 0 ? (
+                  /* NO RESULTS STATE */
+                  <div
+                    data-testid="no-results-message"
+                    className="rounded-lg border border-zinc-200 bg-white p-8 text-center space-y-2 dark:border-zinc-800 dark:bg-zinc-900"
+                  >
+                    <p className="text-sm font-medium text-charcoal dark:text-zinc-200">
+                      No published certificate found for &ldquo;{searchResult.query}&rdquo;.
+                    </p>
+                    <p className="text-xs text-neutral-gray dark:text-zinc-400">
+                      Please check the spelling of your name or verify that your certificate batch has been published.
+                    </p>
+                  </div>
+                ) : (
+                  /* RESULTS STATE */
+                  <div className="space-y-3">
+                    <p
+                      data-testid="search-results-summary"
+                      className="text-xs font-medium text-neutral-gray dark:text-zinc-400"
+                    >
+                      Found {searchResult.results.length} certificate{searchResult.results.length === 1 ? "" : "s"} for &ldquo;{searchResult.query}&rdquo;
+                    </p>
+
+                    <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 bg-white shadow-xs dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
+                      {searchResult.results.map((c) => (
+                        <li
+                          key={c.certificateId}
+                          data-testid={`search-result-item-${c.certificateId}`}
+                          className="flex items-center justify-between px-5 py-4 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                        >
+                          <div className="space-y-0.5">
+                            <span
+                              data-testid="published-name"
+                              className="text-sm font-medium text-charcoal dark:text-zinc-100"
+                            >
+                              {c.publishedName}
+                            </span>
+                            <p className="text-xs text-neutral-gray dark:text-zinc-400">
+                              Certificate Available
+                            </p>
+                          </div>
+
+                          <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+                            Published
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </>
+            )}
+          </section>
         </div>
       </main>
     </div>

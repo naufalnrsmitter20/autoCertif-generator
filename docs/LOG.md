@@ -1,8 +1,8 @@
 # AutoCertif — Project Log
 
 ## Current State
-**Phase:** Phase 11 — Safe Published Update + Batch Publish / Unpublish  
-**Status:** PHASE 11 COMPLETE & ACCEPTED — ALL CANONICAL GATES, 29 UNIT/INTEGRATION TEST FILES (341 TESTS), LIVE POSTGRES/SUPABASE STORAGE INTEGRATION, PLAYWRIGHT E2E, AND PRODUCTION BUILD PASSED
+**Phase:** Phase 12 — Public Certificate Search  
+**Status:** PHASE 12 COMPLETE & ACCEPTED — ALL CANONICAL GATES, 33 TEST FILES (370 TESTS), LIVE POSTGRESQL INTEGRATION, PLAYWRIGHT E2E, AND TURBOPACK PRODUCTION BUILD PASSED
 
 ## Confirmed Product Decisions
 - Product: AutoCertif — `Certificate Generator` System
@@ -235,9 +235,9 @@ Engineering interpretation:
 - `PASS` — `bun run prisma migrate status` ("4 migrations found in prisma/migrations, Database schema is up to date!")
 - `PASS` — `bun run typecheck` (`tsc --noEmit` exited with code 0)
 - `PASS` — `bun run lint` (`eslint` exited with code 0, 0 errors, 1 pre-existing warning in verify script)
-- `PASS` — `bun run test` (`vitest run` exited with code 0: 29 test files passed, 341 unit/integration tests passed)
-- `PASS` — `bun run test:e2e tests/e2e/publication.spec.ts` (`playwright test` exited with code 0: 1 passed)
-- `PASS` — `bun run build` (`bun scripts/copy-pdf-worker.ts && next build` Turbopack exited with code 0 in 39.6s, all routes generated cleanly, worker copied)
+- `PASS` — `bun run test` (`vitest run` exited with code 0: 33 test files passed, 370 unit/integration tests passed)
+- `PASS` — `bun run test:e2e tests/e2e/public-search.spec.ts` (`playwright test` exited with code 0: 2 passed)
+- `PASS` — `bun run build` (`bun scripts/copy-pdf-worker.ts && next build` Turbopack exited with code 0, dynamic `/` route compiled cleanly)
 
 ## Stack & Baseline Findings
 - **Runtime / Package Manager**: Bun v1.4.2 active (`bun.lock` present).
@@ -260,13 +260,42 @@ Engineering interpretation:
   - Database schema is fully up to date.
 
 ## Next Action
-1. Await project owner sign-off on Phase 11.
-2. Proceed to **Phase 12 — Public Name Search** according to `docs/PRD.md` and `docs/FSD.md`. Do not begin Phase 12 until explicitly authorized.
+1. Await project owner sign-off on Phase 12.
+2. Proceed to **Phase 13 — Public Certificate Preview & Download** according to `docs/PRD.md` and `docs/FSD.md`. Do not begin Phase 13 until explicitly authorized.
 
 ## Open Issues
 - **Production Font Asset Debt**: Real-template visual acceptance remains blocked until an approved production font asset and configuration are provisioned. (Test-only font is strictly isolated to test fixtures).
 
 ## History
+
+### 2026-09-27 — Phase 12 Public Certificate Search
+- Implemented Phase 12 adhering strictly to all approved mandatory user specifications and guardrails:
+  1. **Public Search Domain & Normalization Layer**:
+     - Implemented `lib/search/types.ts`, `lib/search/normalize.ts`, `lib/search/service.ts`, and `lib/search/index.ts`.
+     - Strict search field targeting: queries exclusively against `Certificate.publishedName` — never `Participant.name` (preserving live snapshot immutability during in-progress published participant edits).
+     - Authoritative visibility gate: `batch.publishedAt != null`, `batch.deletedAt == null`, `participant.deletedAt == null`, `certificate.deletedAt == null`, `publishedName != null`, `publishedFilePath != null`.
+     - Operational status decoupling: does **NOT** require `batch.status == PUBLISHED` (handles published replacement generation where batch status is `GENERATING` or failure where batch status is `FAILED`); does **NOT** require `Certificate.status == GENERATED` or `isStale == false`.
+     - Immediate unpublish kill-switch: clearing `batch.publishedAt` instantly removes batch certificates from public search even when snapshots exist.
+     - Wildcard safety: literal escaping of `%`, `_`, and `\` via `escapeLikePattern` ensures PostgreSQL `ILIKE` behaves as strict literal substring search.
+     - Zero hard result truncation: removed `take: 100` cap. Duplicate names and matches across multiple published batches return all matching certificates.
+     - Deterministic ordering: `publishedName: "asc", id: "asc"`.
+     - Strict Public DTO: serialized response contains strictly `{ certificateId: string, publishedName: string }`. Zero exposure of storage paths, internal batch/participant IDs, error messages, or soft deletion flags.
+  2. **Public Search UI**:
+     - Implemented App Router root route `/` in `app/page.tsx` as a dynamic Server Component (`export const dynamic = "force-dynamic"`).
+     - Created accessible client search form in `app/search-form.tsx` using `GET` submission to `/` with query parameter `q`. Handles empty state, loading state, invalid length state (>1000 chars technical transport guard), no results state, and results list.
+     - Visual styling adheres strictly to SMK Telkom Malang tokens (`--telkom-red`, `--charcoal`, `--neutral-gray`) and responsive guidelines with zero horizontal overflow on mobile viewports.
+     - Strict Phase 12 boundary preserved: zero certificate preview (canvas/iframe) or certificate download (direct/presigned) implemented. Pure search-only.
+  3. **Comprehensive Verification**:
+     - `tests/unit/public-search-normalize.test.ts` (10 tests: trimming, non-string, bounds, and wildcard escaping).
+     - `tests/unit/public-search-service.test.ts` (17 tests: all publication snapshot contracts A through Q against live Supabase PostgreSQL).
+     - `tests/unit/public-search-completeness.test.ts` (1 test: seeded 105 matching certificates across multiple published batches to verify zero hard truncation).
+     - `tests/unit/public-search-leak.test.ts` (1 test: verified strict non-disclosure of private paths and internal fields).
+     - `tests/e2e/public-search.spec.ts` (2 tests: unauthenticated search, duplicates, replacement in-progress, and responsive viewport verification).
+     - `bun run typecheck`: PASS (0 errors).
+     - `bun run lint`: PASS (0 errors, 1 pre-existing warning).
+     - `bun run test`: PASS across all 33 test files (370 tests, 0 failures).
+     - `bun run test:e2e tests/e2e/public-search.spec.ts`: PASS (2 passed).
+     - `bun run build`: PASS (Next.js production build succeeded with Turbopack, dynamic `/` route generated cleanly).
 
 ### 2026-09-27 — Phase 11 Safe Published Update + Batch Publish / Unpublish
 - Implemented Phase 11 adhering strictly to all 6 approved mandatory user guardrails:

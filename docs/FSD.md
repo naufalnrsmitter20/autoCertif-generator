@@ -516,28 +516,69 @@ Unpublishing provides an immediate, authoritative visibility kill-switch:
 - Public search and download routes check `batch.publishedAt != null`, instantly cutting off public access.
 - Batch can be safely republished at any time.
 
-## 16. Public Search
-Search input: participant name only.
+## 16. Public Certificate Search (Phase 12)
+Unauthenticated, public search for certificates hosted at the root route (`/`).
 
-Behavior:
-- trim query
-- case-insensitive
-- partial matching
-- search only active participants in published batches with a current successful generated certificate
-- return all matches when names collide
+### Input & Query Semantics
+- Query parameter: `q` (`/?q=<name>`)
+- Form method: `GET` to root `/`
+- Query normalization:
+  - Non-string or null/undefined queries return initial empty state.
+  - Query string is trimmed of leading and trailing whitespace.
+  - Empty or whitespace-only queries return no results (does not return all certificates).
+  - Maximum query length safety guard: 1,000 characters (technical transport protection; domain does not artificially cap names below valid bounds).
+- Substring matching:
+  - Case-insensitive substring matching (`contains: escapedQuery, mode: "insensitive"` in Prisma, mapping to PostgreSQL `ILIKE %query%`).
+  - Wildcard escaping: literal characters `%`, `_`, and `\` are escaped to `\%`, `\_`, and `\\` prior to database querying to prevent wildcard leakage.
 
-Example:
-- query: `naufal`
-- may match: `Naufal Nabil Ramadhan`
+### Search Target & Publication Snapshot Contract
+Search queries exclusively against:
+- `Certificate.publishedName`
+- **NEVER** against `Participant.name`.
 
-Do not expose:
-- auth data
-- internal storage path
-- generation errors
-- soft-deleted records
-- unnecessary internal identifiers as human-facing certificate numbers
+RATIONALE: During published safe participant edits or regenerations, `Participant.name` reflects uncommitted in-progress changes, while `Certificate.publishedName` preserves the live, immutable public representation until atomic cutover.
 
-A route may still contain an opaque internal record ID or opaque public slug.
+### Public Eligibility & Visibility Authority
+A certificate is visible in public search if and only if ALL following conditions are met:
+1. `batch.publishedAt != null` (authoritative visibility gate)
+2. `batch.deletedAt == null` (batch is not soft-deleted)
+3. `participant.deletedAt == null` (participant is not soft-deleted)
+4. `certificate.deletedAt == null` (certificate is not soft-deleted)
+5. `certificate.publishedName != null` (valid publication snapshot name exists)
+6. `certificate.publishedFilePath != null` (valid publication snapshot file exists)
+
+CRITICAL INVARIANTS:
+- Does **NOT** require `batch.status == PUBLISHED`: during in-progress published replacement generation, `batch.status` is temporarily `GENERATING`. Search must remain active against the old snapshot.
+- Does **NOT** require `Certificate.status == GENERATED`: during replacement failure, certificate operational status may be `FAILED`, but previous published snapshot remains valid and searchable.
+- Does **NOT** require `isStale == false`: stale replacement flags do not revoke public snapshot visibility.
+- Unpublish behavior: Setting `batch.publishedAt = null` immediately acts as a kill-switch, hiding all batch certificates from search instantly.
+
+### Result Completeness & Duplicate Handling
+- **Zero hard result truncation**: No `take: 100` cap. The ~100 participant target is per batch, not an application-wide maximum.
+- All matching published certificates across all published batches are returned.
+- Duplicate names are never deduplicated; all matching certificates are presented.
+- Deterministic ordering: `publishedName: "asc", id: "asc"`.
+
+### Public DTO & Zero Field Leakage
+The public search API/service returns strictly:
+```typescript
+interface PublicCertificateSearchResult {
+  certificateId: string;
+  publishedName: string;
+}
+```
+Public search strictly prohibits exposing:
+- `publishedFilePath` / `generatedFilePath` (private storage paths)
+- Internal `batchId` or `participantId`
+- Operational statuses (`status`, `isStale`, `generationKey`)
+- Error messages (`errorMessage`, failure diagnostics)
+- Soft deletion flags (`deletedAt`) or timestamps (`createdAt`, `updatedAt`, `publishedAt`)
+
+### UI Presentation & Scope Boundaries
+- Rendered on `/` using Server Component with client search form (`search-form.tsx`).
+- Visual design follows SMK Telkom Malang identity tokens (`--telkom-red`, `--charcoal`, `--neutral-gray`) and responsive guidelines.
+- **Strict Scope Boundary**: Phase 12 is SEARCH-ONLY. No certificate preview (canvas/iframe) or certificate download (direct or presigned) is rendered. Those actions are exclusively deferred to Phase 13.
+
 
 ## 17. Public Certificate Page
 Required:

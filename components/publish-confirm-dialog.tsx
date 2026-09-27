@@ -27,40 +27,41 @@ export function PublishConfirmDialog({
 
   // Fetch preflight when dialog opens
   useEffect(() => {
-    if (!isOpen) {
-      setPreflightData(null);
-      setErrorMessage(null);
-      return;
-    }
+    if (!isOpen) return;
 
     let isMounted = true;
-    setIsLoadingPreflight(true);
-    setErrorMessage(null);
 
-    fetch(`/api/admin/batches/${batchId}/publish`)
-      .then((res) => res.json())
-      .then((data) => {
+    async function loadPreflight() {
+      setIsLoadingPreflight(true);
+      setErrorMessage(null);
+
+      try {
+        const res = await fetch(`/api/admin/batches/${batchId}/publish`);
+        const data = await res.json();
         if (!isMounted) return;
         if (!data.success) {
           setErrorMessage(data.error || "Failed to load publication preflight.");
         } else {
           setPreflightData(data.data);
         }
-      })
-      .catch((err) => {
+      } catch (err) {
         if (!isMounted) return;
         setErrorMessage(
           err instanceof Error ? err.message : "Failed to load publication preflight."
         );
-      })
-      .finally(() => {
+      } finally {
         if (isMounted) {
           setIsLoadingPreflight(false);
         }
-      });
+      }
+    }
+
+    void loadPreflight();
 
     return () => {
       isMounted = false;
+      setPreflightData(null);
+      setErrorMessage(null);
     };
   }, [isOpen, batchId]);
 

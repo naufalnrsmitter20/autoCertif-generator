@@ -28,7 +28,13 @@ export function UnpublishConfirmDialog({
           method: "POST",
           headers: { "Content-Type": "application/json" },
         });
-        const data = await res.json();
+        const text = await res.text();
+        let data: { success?: boolean; error?: string } = {};
+        try {
+          data = JSON.parse(text);
+        } catch {
+          throw new Error(`Server returned HTML/non-JSON (${res.status}): ${text.slice(0, 100)}`);
+        }
         if (!res.ok || !data.success) {
           setErrorMessage(data.error || "Failed to unpublish batch.");
         } else {
