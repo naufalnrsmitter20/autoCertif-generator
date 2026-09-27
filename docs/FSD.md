@@ -369,12 +369,54 @@ Example:
 
 The batch UI must explicitly show the failed participant name and failure reason.
 
-### Retry
-ADMIN can:
-- retry/regenerate one participant
-- regenerate the whole batch
+### Retry & Regeneration Contracts (Established in Phase 10)
+Generation management enforces distinct, strictly validated server-side contracts:
 
-A successful retry replaces that participant's current generated output according to safe file replacement rules.
+#### 1. Operation Preconditions
+- **Retry Failed Participant (`retry-participant`)**:
+  - Precondition: `batch.status === GENERATED` AND target certificate `status === FAILED`.
+  - Touches only the specified target Certificate record.
+- **Regenerate Successful Participant (`regenerate-participant`)**:
+  - Precondition: `batch.status === GENERATED` AND target certificate `status === GENERATED`.
+  - Touches only the specified target Certificate record.
+- **Regenerate Whole Batch (`regenerate-batch`)**:
+  - Precondition: `batch.status === GENERATED`.
+  - Resets all active certificates in the batch to `PENDING` under a new generation key.
+- **Recover Failed Batch (`recover-batch`)**:
+  - Precondition: `batch.status === FAILED`.
+  - Recovers only unfinished certificates belonging to the failed operation.
+
+#### 2. Stale Request Protection & Optimistic Concurrency Control (CAS)
+Every management request MUST provide `expectedCurrentGenerationKey` matching the generation identity visible when ADMIN initiated the action.
+Inside the database transaction, an atomic Compare-And-Swap (CAS) verifies:
+- `batch.id` matches
+- `batch.status` matches expected lifecycle state
+- `batch.currentGenerationKey === expectedCurrentGenerationKey`
+- `batch.deletedAt IS NULL`
+
+If any check fails (e.g., another generation finished concurrently), the server rejects the request with `ConcurrentGenerationConflictError` (HTTP 409).
+
+#### 3. Scope-Preserving FAILED Batch Recovery
+When a batch enters `FAILED` status, it reflects failure of the CURRENT generation operation identified by `failedGenerationKey = batch.currentGenerationKey`.
+The recovery target set is determined strictly by:
+- `batchId === batch.id`
+- `generationKey === failedGenerationKey`
+- `deletedAt IS NULL`
+- `status IN [PENDING, GENERATING]`
+
+Behavior:
+- Only unfinished certificates from the failed operation are assigned the fresh recovery `generationKey` and reset to `PENDING`.
+- Terminal certificates (`GENERATED`, `FAILED`) belonging to earlier completed operations remain untouched.
+- If failed operation had zero unfinished certificates remaining, the batch reconciles directly to `GENERATED` without launching superfluous workers.
+
+#### 4. Safe Output & Stale Flag Preservation
+- Previous output paths (`generatedFilePath`) and timestamps (`generatedAt`) are NEVER nullified during regeneration or worker failure.
+- Certificates under regeneration are flagged with `isStale = true`.
+- If regeneration succeeds, `generatedFilePath` points to the new storage object, `generatedAt` is updated, and `isStale` becomes `false`.
+- If regeneration fails, the previous successful file path and timestamp remain intact on the database record and in Supabase Storage, preserving the stale output with `isStale = true` and `status = FAILED`. Old storage files are never deleted.
+
+#### 5. Information Exposure Boundary
+Generation management APIs and UI present sanitized, user-safe error categories (e.g., `NAME_DOES_NOT_FIT: SINGLE_WORD_OVERFLOW` mapped to `"Name could not fit safely within configured certificate area."`). Internal filesystem paths, database error traces, and raw storage URLs are never exposed.
 
 ## 13. Output Files
 Each participant gets one generated certificate PDF.

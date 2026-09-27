@@ -1,8 +1,8 @@
 # AutoCertif — Project Log
 
 ## Current State
-**Phase:** Phase 9 — Bulk Generation & Inngest Background Orchestration  
-**Status:** PHASE 9 COMPLETE & ACCEPTED — ALL CANONICAL GATES AND LIVE PLAYWRIGHT E2E PASSED
+**Phase:** Phase 10 — Generation Management  
+**Status:** PHASE 10 COMPLETE & ACCEPTED — ALL CANONICAL GATES, 25 UNIT/INTEGRATION TEST FILES (302 TESTS), LIVE POSTGRES/SUPABASE INTEGRATION, PLAYWRIGHT E2E, AND PRODUCTION BUILD PASSED
 
 ## Confirmed Product Decisions
 - Product: AutoCertif — `Certificate Generator` System
@@ -259,14 +259,38 @@ Engineering interpretation:
   - Database schema is fully up to date.
 
 ## Next Action
-1. Proceed to **Phase 10 — Participant Failure Review & Regeneration** according to `docs/PRD.md` and `docs/FSD.md`.
+1. Await project owner sign-off on Phase 10.
+2. Proceed to **Phase 11 — Publishing, Public Search & Certificate Download** according to `docs/PRD.md` and `docs/FSD.md`. Do not begin Phase 11 until explicitly authorized.
 
 ## Open Issues
 - **Production Font Asset Debt**: Real-template visual acceptance remains blocked until an approved production font asset and configuration are provisioned. (Test-only font is strictly isolated to test fixtures).
 
 ## History
 
-### 2026-09-26 — Phase 9 Bulk Generation & Inngest Orchestration
+### 2026-09-27 — Phase 10 Generation Management
+- Implemented Phase 10 adhering strictly to all 7 approved mandatory user corrections:
+  1. **Scoped FAILED Batch Recovery**: When a batch is FAILED, recovery derives its target set exclusively from unfinished certificates (`status in [PENDING, GENERATING]`) belonging to the failed operation (`generationKey == batch.currentGenerationKey`). Assigns a fresh recovery `generationKey` and resets only those certificates to `PENDING`. Leaves all terminal certificates (`GENERATED`, `FAILED`) from earlier completed operations untouched. If the failed operation has 0 unfinished certificates remaining, safely reconciles batch status directly to `GENERATED` without launching redundant workers.
+  2. **Server-Side Action Semantics**: Preconditions enforced strictly on the server:
+     - `retry-participant`: batch must be `GENERATED`, target Certificate must be `FAILED`.
+     - `regenerate-participant`: batch must be `GENERATED`, target Certificate must be `GENERATED`.
+     - `regenerate-batch`: batch must be `GENERATED`.
+     - `recover-batch`: batch must be `FAILED`.
+     - Normal participant retry/regenerate actions are rejected server-side while the batch is `FAILED`.
+  3. **Stale Request / Optimistic Concurrency Control (CAS)**: Every generation-management action accepts `expectedCurrentGenerationKey`. Inside the database transaction, an atomic CAS compares against `batch.id`, expected status, `batch.currentGenerationKey == expectedCurrentGenerationKey`, and `batch.deletedAt == null`. Mismatches reject immediately with `ConcurrentGenerationConflictError` (HTTP 409).
+  4. **Shared Rendering Prerequisites vs Operation Lifecycle**: Separated shared prerequisite checks (`validateRenderingPrerequisites` in `lib/generation/preflight.ts`) from operation-specific lifecycle authorization.
+  5. **Worker Output Preservation**: Updated `lib/inngest/functions/generate-participant.ts` so `generatedFilePath` and `generatedAt` are never cleared on failure. During regeneration, certificates transition to `PENDING` with `isStale = true`; on failure, previous output paths and timestamps are preserved in DB and Supabase Storage; on success, the record atomically swaps to the new storage path and sets `isStale = false`. Old storage files are never deleted.
+  6. **Clean Client/Server Decoupling**: Created `lib/generation/types.ts` and updated badges to import enums from browser-safe modules (`@/generated/prisma/enums`), preventing Node-specific modules (`node:module`, `sharp`, `PrismaClient`) from leaking into client bundles and resolving Turbopack browser chunking panics.
+  7. **Generation Management UI**: Created `/admin/batches/[batchId]/generation` with summary metrics (Total, Generated, Failed, In Progress, Stale), Filter tabs (`ALL`, `FAILED`, `GENERATED`, `IN_PROGRESS`), responsive table with mobile-safe wrapping, contextual Retry/Regenerate buttons, Regenerate Whole Batch confirmation dialog, safe error presentation (sanitized against leaking filesystem paths or internal traces), and active polling while `GENERATING`.
+  8. **Strict Boundaries Preserved**: Zero Prisma migrations. Concurrency limit 5 preserved. Production font remains NOT CONFIGURED. Zero Phase 11 publish/public functionality implemented.
+- Comprehensive Verification:
+  - `bun run typecheck`: PASS (0 errors).
+  - `bun run lint`: PASS (0 errors, 1 pre-existing warning).
+  - `bun run test`: PASS across all 25 test files (302 tests, 0 failures), including:
+    - `tests/unit/generation-management.test.ts` (13 unit tests verifying all action contracts, optimistic concurrency CAS, and FAILED recovery scopes).
+    - `tests/unit/phase10-generation-live.test.ts` (5 integration tests against live PostgreSQL and Supabase Storage verifying output preservation, stale flag handling, and scoped recovery).
+    - `tests/unit/generate-participant-worker.test.ts` (10 worker retry/failure isolation tests).
+  - `bun x playwright test tests/e2e/generation-management.spec.ts`: PASS (19.1s) verifying UI rendering, summary cards, filter tabs, safe failure messages, whole-batch confirmation dialog, and mobile layout without horizontal overflow.
+  - `bun run build`: PASS (Turbopack production build succeeded in 7.8m; all static and dynamic endpoints generated cleanly).
 - Implemented Phase 9 adhering strictly to all 12 mandatory user corrections.
 - Schema & Migration:
   - Added nullable `currentGenerationKey String?` to `CertificateBatch` and `generationKey String?` to `Certificate` in `prisma/schema.prisma`.

@@ -32,24 +32,24 @@ export interface ValidatedPreflightSnapshot {
 }
 
 /**
- * Executes comprehensive preflight validation for initial bulk generation.
- *
- * Catches ALL shared deterministic configuration and template failures:
- * - Batch eligibility (active, DRAFT)
- * - Template presence and non-deleted state
+ * Validates shared rendering prerequisites for a batch independent of its lifecycle status:
+ * - Batch exists and is not soft-deleted
+ * - Active template presence and non-deleted state
+ * - Template sourceFilePath present
  * - NamePlacement spatial validation
  * - Deterministic font asset configuration and resolution
  * - fontConfig parsing and style validation
  * - Template source object accessibility and byte geometry validation
- * - Participant count (>0) and name normalization
+ * - Target participants (filtered if targetParticipantIds is passed, or all active participants)
+ *   have count > 0 and valid non-blank normalized names.
  *
- * If any check fails, throws GenerationPreflightError synchronously without
- * mutating the batch or enqueuing jobs.
+ * Catches ALL shared deterministic configuration and template failures without mutating DB.
  */
-export async function executeGenerationPreflight(
-  batchId: string
+export async function validateRenderingPrerequisites(
+  batchId: string,
+  targetParticipantIds?: string[]
 ): Promise<ValidatedPreflightSnapshot> {
-  // 1. Fetch batch with active template and active participants
+  // 1. Fetch batch with active template and participants
   const batch = await prisma.certificateBatch.findFirst({
     where: {
       id: batchId,
@@ -60,6 +60,9 @@ export async function executeGenerationPreflight(
       participants: {
         where: {
           deletedAt: null,
+          ...(targetParticipantIds && targetParticipantIds.length > 0
+            ? { id: { in: targetParticipantIds } }
+            : {}),
         },
         orderBy: {
           createdAt: "asc",
@@ -72,14 +75,7 @@ export async function executeGenerationPreflight(
     throw new GenerationPreflightError("Certificate batch not found or has been deleted.");
   }
 
-  // 2. Validate batch status is DRAFT
-  if (batch.status !== BatchStatus.DRAFT) {
-    throw new GenerationPreflightError(
-      `Batch is in "${batch.status}" status. Initial bulk generation can only be started for batches in DRAFT status.`
-    );
-  }
-
-  // 3. Validate template exists and is active
+  // 2. Validate template exists and is active
   if (!batch.template || batch.template.deletedAt) {
     throw new GenerationPreflightError(
       "No active certificate template is configured for this batch."
@@ -94,7 +90,7 @@ export async function executeGenerationPreflight(
     );
   }
 
-  // 4. Validate namePlacement
+  // 3. Validate namePlacement
   if (!template.namePlacement) {
     throw new GenerationPreflightError(
       "Participant name placement has not been configured. Position the name field before generating."
@@ -112,7 +108,7 @@ export async function executeGenerationPreflight(
   }
   const validatedPlacement: NamePlacement = placementResult.data;
 
-  // 5. Validate fontAssetPath and resolve deterministic font bytes
+  // 4. Validate fontAssetPath and resolve deterministic font bytes
   if (!template.fontAssetPath || template.fontAssetPath.trim().length === 0) {
     throw new GenerationPreflightError(
       "Deterministic font asset is not configured for this template. Real production font remains NOT CONFIGURED."
@@ -128,7 +124,7 @@ export async function executeGenerationPreflight(
     );
   }
 
-  // 6. Validate fontConfig JSON
+  // 5. Validate fontConfig JSON
   if (!template.fontConfig) {
     throw new GenerationPreflightError(
       "Typography rendering style (fontConfig) is not configured for this template."
@@ -145,7 +141,7 @@ export async function executeGenerationPreflight(
     );
   }
 
-  // 7. Validate template source file accessibility and byte geometry
+  // 6. Validate template source file accessibility and byte geometry
   let templateBuffer: Buffer;
   try {
     templateBuffer = await downloadTemplateBuffer(template.sourceFilePath);
@@ -207,7 +203,7 @@ export async function executeGenerationPreflight(
     }
   }
 
-  // 8. Validate active participants
+  // 7. Validate target active participants
   if (batch.participants.length === 0) {
     throw new GenerationPreflightError(
       "Cannot generate certificates for a batch with 0 participants. Import or add participants first."
@@ -246,4 +242,35 @@ export async function executeGenerationPreflight(
     fontAssetPath: template.fontAssetPath,
     activeParticipants: validatedParticipants,
   };
+}
+
+/**
+ * Executes comprehensive preflight validation for INITIAL bulk generation.
+ * Strictly verifies batch status is DRAFT before running shared rendering prerequisites.
+ */
+export async function executeGenerationPreflight(
+  batchId: string
+): Promise<ValidatedPreflightSnapshot> {
+  const batch = await prisma.certificateBatch.findFirst({
+    where: {
+      id: batchId,
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+      status: true,
+    },
+  });
+
+  if (!batch) {
+    throw new GenerationPreflightError("Certificate batch not found or has been deleted.");
+  }
+
+  if (batch.status !== BatchStatus.DRAFT) {
+    throw new GenerationPreflightError(
+      `Batch is in "${batch.status}" status. Initial bulk generation can only be started for batches in DRAFT status.`
+    );
+  }
+
+  return validateRenderingPrerequisites(batchId);
 }

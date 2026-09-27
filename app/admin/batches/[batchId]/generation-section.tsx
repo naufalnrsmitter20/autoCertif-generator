@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 export type BatchStatus = "DRAFT" | "READY" | "GENERATING" | "GENERATED" | "PUBLISHED" | "FAILED";
 import type { BatchGenerationSummary } from "@/lib/batches";
@@ -284,19 +285,37 @@ export function GenerationSection({
             </div>
           </div>
 
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            All participants reached terminal status. Detailed participant retry and generation management will be available in Phase 10.
-          </p>
+          <div className="pt-2 flex items-center justify-between">
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              All participants reached terminal status.
+            </p>
+            <Link
+              href={`/admin/batches/${batchId}/generation`}
+              data-testid="manage-generation-link"
+              className="inline-flex min-h-[36px] items-center justify-center rounded-md bg-telkom-red hover:bg-telkom-red-dark px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs focus:outline-none focus:ring-2 focus:ring-telkom-red transition-colors"
+            >
+              Manage Generation &rarr;
+            </Link>
+          </div>
         </div>
       )}
 
       {/* FAILED STATE: Batch-level orchestration crash */}
       {batchStatus === "FAILED" && (
-        <div className="mt-4 rounded-md bg-rose-50 p-4 border border-rose-200 text-sm text-rose-800 dark:bg-rose-950/40 dark:border-rose-900 dark:text-rose-200">
+        <div className="mt-4 rounded-md bg-rose-50 p-4 border border-rose-200 text-sm text-rose-800 dark:bg-rose-950/40 dark:border-rose-900 dark:text-rose-200 space-y-2">
           <p className="font-semibold">Batch Generation Failed</p>
-          <p className="mt-1 text-xs">
+          <p className="text-xs">
             An unrecoverable system orchestration failure occurred while dispatching jobs.
           </p>
+          <div className="pt-1">
+            <Link
+              href={`/admin/batches/${batchId}/generation`}
+              data-testid="manage-generation-link-failed"
+              className="inline-flex min-h-[34px] items-center justify-center rounded-md bg-rose-600 hover:bg-rose-700 px-3 py-1.5 text-xs font-semibold text-white shadow-xs focus:outline-none focus:ring-2 focus:ring-rose-600 transition-colors"
+            >
+              Open Generation Management &rarr;
+            </Link>
+          </div>
         </div>
       )}
     </div>

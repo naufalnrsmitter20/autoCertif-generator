@@ -63,8 +63,6 @@ export const generateParticipant = inngest.createFunction(
           data: {
             status: CertificateStatus.FAILED,
             generationError: "INFRASTRUCTURE_FAILURE: Retry limit exceeded for transient failure",
-            generatedAt: null,
-            generatedFilePath: null,
           },
         });
 
@@ -231,8 +229,6 @@ export const generateParticipant = inngest.createFunction(
             data: {
               status: CertificateStatus.FAILED,
               generationError: safeError,
-              generatedAt: null,
-              generatedFilePath: null,
             },
           });
 

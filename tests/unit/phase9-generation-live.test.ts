@@ -69,58 +69,88 @@ describe("Phase 9 Live Architecture & Supabase Output Integration", { timeout: 4
       throw new Error(`Failed to upload test template to storage: ${uploadError.message}`);
     }
 
+async function withRetry<T>(fn: () => Promise<T>, retries = 5): Promise<T> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (err: unknown) {
+      if (i === retries - 1) throw err;
+      const msg = err instanceof Error ? err.message : String(err);
+      if (
+        msg.includes("EAI_AGAIN") ||
+        msg.includes("timeout") ||
+        msg.includes("ECONNRESET") ||
+        msg.includes("Can't reach database server")
+      ) {
+        await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error("Retry exhausted");
+}
+
     // 3. Create Template record in DB with deterministic configuration
-    await prisma.certificateTemplate.create({
-      data: {
-        id: testTemplateId,
-        name: `Integration Test Template ${timestamp}`,
-        fileType: TemplateFileType.PDF,
-        sourceFilePath: templateStoragePath,
-        pageWidth: 842,
-        pageHeight: 595,
-        namePlacement: {
-          xRatio: 0.5,
-          yRatio: 0.5,
-          maxWidthRatio: 0.35, // 0.35 * 842 = ~294 pt allowed width
-          alignment: "center",
+    await withRetry(() =>
+      prisma.certificateTemplate.create({
+        data: {
+          id: testTemplateId,
+          name: `Integration Test Template ${timestamp}`,
+          fileType: TemplateFileType.PDF,
+          sourceFilePath: templateStoragePath,
+          pageWidth: 842,
+          pageHeight: 595,
+          namePlacement: {
+            xRatio: 0.5,
+            yRatio: 0.5,
+            maxWidthRatio: 0.35, // 0.35 * 842 = ~294 pt allowed width
+            alignment: "center",
+          },
+          fontAssetPath: "test-font",
+          fontConfig: {
+            fontSize: 28,
+            minFontSize: 16,
+            lineHeightMultiplier: 1.2,
+            textColor: { r: 0.1, g: 0.1, b: 0.1 },
+            stepSize: 1,
+          },
         },
-        fontAssetPath: "test-font",
-        fontConfig: {
-          fontSize: 28,
-          minFontSize: 16,
-          lineHeightMultiplier: 1.2,
-          textColor: { r: 0.1, g: 0.1, b: 0.1 },
-          stepSize: 1,
-        },
-      },
-    });
+      })
+    );
 
     // 4. Create Batch record in DRAFT status
-    await prisma.certificateBatch.create({
-      data: {
-        id: testBatchId,
-        name: `Integration Test Batch ${timestamp}`,
-        status: BatchStatus.DRAFT,
-        templateId: testTemplateId,
-      },
-    });
+    await withRetry(() =>
+      prisma.certificateBatch.create({
+        data: {
+          id: testBatchId,
+          name: `Integration Test Batch ${timestamp}`,
+          status: BatchStatus.DRAFT,
+          templateId: testTemplateId,
+        },
+      })
+    );
 
     // 5. Create Participant A (valid, renderable within 294 pt)
-    const partA = await prisma.participant.create({
-      data: {
-        batchId: testBatchId,
-        name: "Ahmad Budi Santoso",
-      },
-    });
+    const partA = await withRetry(() =>
+      prisma.participant.create({
+        data: {
+          batchId: testBatchId,
+          name: "Ahmad Budi Santoso",
+        },
+      })
+    );
     participantAId = partA.id;
 
     // 6. Create Participant B (deterministic domain failure: too long for 294 pt even at minFontSize 16 and 2 lines)
-    const partB = await prisma.participant.create({
-      data: {
-        batchId: testBatchId,
-        name: "Hubert Blaine Wolfeschlegelsteinhausenbergerdorff Senior Third Count of Lichtenstein von Hohenzollern the Great Emperor",
-      },
-    });
+    const partB = await withRetry(() =>
+      prisma.participant.create({
+        data: {
+          batchId: testBatchId,
+          name: "Hubert Blaine Wolfeschlegelsteinhausenbergerdorff Senior Third Count of Lichtenstein von Hohenzollern the Great Emperor",
+        },
+      })
+    );
     participantBId = partB.id;
   }, 45000);
 

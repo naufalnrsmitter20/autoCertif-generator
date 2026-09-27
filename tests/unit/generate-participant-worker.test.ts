@@ -105,8 +105,6 @@ async function simulateOnFailureReconciliation(
       status: CertificateStatus.FAILED,
       generationError:
         "INFRASTRUCTURE_FAILURE: Retry limit exceeded for transient failure",
-      generatedAt: null,
-      generatedFilePath: null,
     },
   });
   return checkAndFinalizeBatch(batchId, generationKey);
@@ -251,12 +249,10 @@ describe("Participant Worker — onFailure Retry Exhaustion Reconciliation", () 
           generationKey,
           status: CertificateStatus.GENERATING,
         }),
-        data: expect.objectContaining({
+        data: {
           status: CertificateStatus.FAILED,
           generationError: expect.stringMatching(/^INFRASTRUCTURE_FAILURE:/),
-          generatedAt: null,
-          generatedFilePath: null,
-        }),
+        },
       })
     );
   });
