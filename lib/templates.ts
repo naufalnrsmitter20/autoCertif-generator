@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
+import { getProductionFont, resolveFontBytes } from "@/lib/rendering/font-registry";
+import { fontConfigSchema } from "@/lib/rendering/font-config";
 import { requireAdmin } from "@/lib/auth/guard";
-import { BatchStatus, CertificateTemplate } from "@/generated/prisma/client";
+import { BatchStatus, CertificateTemplate, Prisma } from "@/generated/prisma/client";
 import { BatchNotFoundError } from "@/lib/batches";
 import {
   preliminaryUploadInputSchema,
@@ -308,11 +310,20 @@ export async function updateTemplatePlacement(
   input: {
     templateId: string;
     placement: NamePlacement;
+    typography?: { fontFamily: string; fontAssetPath: string; fontSize: number };
   }
 ): Promise<{ templateId: string; namePlacement: NamePlacement }> {
   await requireAdmin();
 
   const validatedPlacement = namePlacementSchema.parse(input.placement);
+  let font: ReturnType<typeof getProductionFont>;
+  if (input.typography) {
+    font = getProductionFont(input.typography.fontAssetPath);
+    if (!font || font.family !== input.typography.fontFamily) {
+      throw new TemplateEligibilityError("Select a registered production font.");
+    }
+    await resolveFontBytes(font.id);
+  }
 
   return await prisma.$transaction(async (tx) => {
     const batch = await tx.certificateBatch.findFirst({
@@ -343,6 +354,16 @@ export async function updateTemplatePlacement(
 
     // Atomically update CertificateTemplate only if it is the one currently linked
     // to this active DRAFT batch and not deleted.
+    const existingFontConfig = font
+      ? (await tx.certificateTemplate.findUnique({ where: { id: input.templateId }, select: { fontConfig: true } }))?.fontConfig
+      : null;
+    const fontConfig = font ? {
+      ...(existingFontConfig && typeof existingFontConfig === "object" && !Array.isArray(existingFontConfig)
+        ? existingFontConfig
+        : { minFontSize: 16, lineHeightMultiplier: 1.5, textColor: { r: 0, g: 0, b: 0 }, stepSize: 1 }),
+      fontSize: input.typography!.fontSize,
+    } : null;
+    if (fontConfig) fontConfigSchema.parse(fontConfig);
     const updateResult = await tx.certificateTemplate.updateMany({
       where: {
         id: input.templateId,
@@ -358,6 +379,11 @@ export async function updateTemplatePlacement(
       },
       data: {
         namePlacement: validatedPlacement,
+        ...(font && fontConfig ? {
+          fontFamily: font.family,
+          fontAssetPath: font.id,
+          fontConfig: fontConfig as Prisma.InputJsonValue,
+        } : {}),
       },
     });
 
@@ -371,4 +397,3 @@ export async function updateTemplatePlacement(
     };
   }, { maxWait: 10000, timeout: 20000 });
 }
-

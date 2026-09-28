@@ -63,6 +63,7 @@ export interface CalculateNameLayoutOptions {
   maxWidth: number;
   pageHeight: number;
   style: RenderCertificateStyle;
+  alignment?: "left" | "center" | "right";
 }
 
 /**
@@ -169,6 +170,7 @@ export function calculateNameLayout(options: CalculateNameLayoutOptions): NameLa
     maxWidth,
     pageHeight,
     style,
+    alignment = "center",
   } = options;
 
   const normalizedName = normalizeParticipantName(name);
@@ -217,7 +219,7 @@ export function calculateNameLayout(options: CalculateNameLayoutOptions): NameLa
             {
               text: normalizedName,
               width: textWidth,
-              startX: calculateStartX(centerX, textWidth),
+              startX: calculateStartX(centerX, textWidth, maxWidth, alignment),
               baselineY,
               ascent,
               descent,
@@ -396,8 +398,8 @@ export function calculateNameLayout(options: CalculateNameLayoutOptions): NameLa
   });
 
   const winner = validCandidates[0];
-  const startX1 = calculateStartX(centerX, winner.line1Width);
-  const startX2 = calculateStartX(centerX, winner.line2Width);
+  const startX1 = calculateStartX(centerX, winner.line1Width, maxWidth, alignment);
+  const startX2 = calculateStartX(centerX, winner.line2Width, maxWidth, alignment);
 
   return {
     mode: "two-line",

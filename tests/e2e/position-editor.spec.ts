@@ -200,6 +200,8 @@ test.describe("Phase 5 - Name Position Editor Flow", () => {
       // 5. Verify Editor components render cleanly
       const editor = page.locator('[data-testid="name-position-editor"]');
       await expect(editor).toBeVisible({ timeout: 10000 });
+      await expect(page.getByLabel("Font", { exact: true })).toHaveValue("DM Sans");
+      await expect(page.getByLabel("Weight").locator("option")).toHaveCount(6);
 
       const surface = page.locator('[data-testid="certificate-preview-surface"]');
       await expect(surface).toBeVisible({ timeout: 10000 });
@@ -245,6 +247,15 @@ test.describe("Phase 5 - Name Position Editor Flow", () => {
       await widthSlider.fill("60");
       await expect(widthDisplay).toHaveText("60%");
 
+      await page.getByLabel("Weight").selectOption("dm-sans-semibold");
+      await page.getByLabel("Font Size").fill("30");
+      await page.getByRole("button", { name: "Align left" }).click();
+      const resizedBox = await overlay.boundingBox();
+      await page.mouse.move(resizedBox!.x + resizedBox!.width - 2, resizedBox!.y + resizedBox!.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(resizedBox!.x + resizedBox!.width - 40, resizedBox!.y + resizedBox!.height / 2, { steps: 5 });
+      await page.mouse.up();
+
       // 8. Save placement
       const saveBtn = page.locator('[data-testid="save-position-button"]');
       await expect(saveBtn).toBeEnabled();
@@ -257,13 +268,16 @@ test.describe("Phase 5 - Name Position Editor Flow", () => {
 
       // Verify in DB that namePlacement is saved and valid
       const updatedTmpl = await pool.query(
-        'SELECT "namePlacement" FROM certificate_templates WHERE id = $1',
+        'SELECT "namePlacement", "fontFamily", "fontAssetPath", "fontConfig" FROM certificate_templates WHERE id = $1',
         [templateId]
       );
       const savedPlacement = updatedTmpl.rows[0].namePlacement;
       expect(savedPlacement).toBeTruthy();
-      expect(savedPlacement.maxWidthRatio).toBeCloseTo(0.6, 2);
-      expect(savedPlacement.alignment).toBe("center");
+      expect(savedPlacement.maxWidthRatio).toBeLessThan(0.6);
+      expect(savedPlacement.alignment).toBe("left");
+      expect(updatedTmpl.rows[0].fontFamily).toBe("DM Sans");
+      expect(updatedTmpl.rows[0].fontAssetPath).toBe("dm-sans-semibold");
+      expect(updatedTmpl.rows[0].fontConfig.fontSize).toBe(30);
       expect(savedPlacement.xRatio).toBeGreaterThan(0.3);
       expect(savedPlacement.yRatio).toBeGreaterThan(0.4);
 
@@ -277,7 +291,9 @@ test.describe("Phase 5 - Name Position Editor Flow", () => {
       // 9. Reload page and verify persisted values restored
       await page.reload();
       await expect(page.locator('[data-testid="name-position-editor"]')).toBeVisible({ timeout: 10000 });
-      await expect(widthDisplay).toHaveText("60%");
+      await expect(page.getByLabel("Weight")).toHaveValue("dm-sans-semibold");
+      await expect(page.getByLabel("Font Size")).toHaveValue("30");
+      await expect(page.getByRole("button", { name: "Align left" })).toHaveAttribute("aria-pressed", "true");
 
       // 10. Test keyboard positioning
       await overlay.focus();
@@ -441,6 +457,8 @@ test.describe("Phase 5 - Name Position Editor Flow", () => {
       // 5. Verify Image preview surface renders
       const imgSurface = page.locator('[data-testid="template-preview-image-surface"]');
       await expect(imgSurface).toBeVisible({ timeout: 15000 });
+      await expect(page.getByLabel("Font", { exact: true })).toHaveValue("DM Sans");
+      await expect(page.getByLabel("Weight").locator("option")).toHaveCount(6);
 
       // Verify overlay exists
       const overlay = page.locator('[data-testid="participant-name-overlay"]');

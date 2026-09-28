@@ -8,10 +8,16 @@ import {
 import { AdminAuthError } from "@/lib/auth/guard";
 import { BatchNotFoundError } from "@/lib/batches";
 import { namePlacementSchema } from "@/lib/coordinates";
+import { FontNotConfiguredError } from "@/lib/rendering/errors";
 
 const savePlacementRequestSchema = z.object({
   templateId: z.string().trim().min(1, "Template ID is required"),
   placement: namePlacementSchema,
+  typography: z.object({
+    fontFamily: z.literal("DM Sans"),
+    fontAssetPath: z.string().min(1),
+    fontSize: z.number().positive().max(500),
+  }),
 });
 
 export async function POST(
@@ -27,6 +33,7 @@ export async function POST(
     const result = await updateTemplatePlacement(batchId, {
       templateId: validated.templateId,
       placement: validated.placement,
+      typography: validated.typography,
     });
 
     return NextResponse.json({
@@ -49,7 +56,7 @@ export async function POST(
       );
     }
 
-    if (error instanceof TemplateEligibilityError) {
+    if (error instanceof TemplateEligibilityError || error instanceof FontNotConfiguredError) {
       return NextResponse.json(
         { success: false, error: error.message },
         { status: 400 }

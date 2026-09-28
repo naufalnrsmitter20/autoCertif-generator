@@ -1,8 +1,25 @@
 # AutoCertif — Project Log
 
 ## Current State
-**Phase:** Phase 14 — Full E2E + Regression
-**Status:** IN PROGRESS — canonical code gates pass; two clean final full E2E runs remain blocked by intermittent Supabase pooler DNS failures (`EAI_AGAIN`). Phase 13 remains accepted.
+**Phase:** Phase 14 — Full E2E + Regression; template typography enhancement implemented
+**Status:** IN PROGRESS — typography editor smoke E2E passes; full PDF editor flow remains blocked intermittently at ADMIN login by database connection failures. Phase 13 remains accepted.
+
+## 2026-09-28 — Typography editor runtime prop regression
+- Traced the sole `PositionEditorClient` call site. The current Server Component passes a required `fonts` prop, but the long-running `next dev` process on port 3000 predates the cross-boundary font changes; an out-of-sync runtime payload can omit a prop despite a clean TypeScript build.
+- Added `getAvailableProductionFonts()` to pass only serializable `id`, `family`, `label`, `weight`, and `style` metadata. No filesystem paths or test font are sent to the client.
+- The client keeps `fonts` required in TypeScript and safely handles absent runtime data, an empty registry, null typography, and removed saved font IDs. Empty registry shows an alert and disables typography saving; null/removed selections use the registered regular variant without auto-saving.
+- Focused font/editor unit tests passed 12/12. Typecheck and build passed. Lint passed with the existing warning in `scripts/verify-phase8-visual.ts`.
+- Exact Playwright command stopped because port 3000 is occupied. On an isolated production server, the PNG editor smoke test passed with DM Sans and six variant checks. The full PDF flow failed at ADMIN login while the server logged transient database connection retries.
+
+## 2026-09-28 — Template typography and name placement
+- Added six bundled DM Sans variants (Light 300, Regular 400, Italic 400, Medium 500, SemiBold 600, Bold 700) to the controlled production registry. Test fixture font remains separate.
+- Added local browser font faces, font/weight/size/alignment controls, and controlled `react-rnd` horizontal resizing and dragging. Position and width still persist as surface ratios with a center anchor.
+- One authenticated save validates and stores placement, font family, registry ID, and fontConfig. Existing fontConfig values are retained; new templates start with 28 pt preferred, 16 pt minimum, 1.5 line height, black, and 1 pt fitting step only when ADMIN saves.
+- Renderer now aligns both single and wrapped lines left, center, or right in the configured box. Legacy missing alignment resolves to center. Existing auto-fit and per-participant failure policy remain.
+- No Prisma migration. `prisma validate`, `prisma generate`, and `prisma migrate status` passed; database reports four migrations up to date.
+- Final focused suites passed 68 tests across six files, including real-font wrapping/alignment, weight embedding, and atomic typography persistence with retained fontConfig fields.
+- `bun run typecheck` passed. `bun run lint` passed with one pre-existing unused-variable warning in `scripts/verify-phase8-visual.ts`. Final `bun run build` passed.
+- Focused Playwright editor spec failed before editor verification: first test showed invalid ADMIN credentials at `/login`; second showed a page-load error. A fresh production server on port 3001 reported transient database connection failures and also stopped at login. Direct database verification found the ADMIN record and confirmed the configured password hash matches. Live generation preflight and Inngest dispatch were not verified.
 
 ## Confirmed Product Decisions
 - Product: AutoCertif — `Certificate Generator` System

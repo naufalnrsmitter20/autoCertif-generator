@@ -15,7 +15,7 @@ The MVP must allow an ADMIN to:
 3. Import participant names from CSV.
 4. Review and manage imported participants.
 5. Generate one certificate per participant in bulk.
-6. Automatically keep long names visually safe and centered.
+6. Automatically keep long names visually safe within the configured name field.
 7. Identify exactly which participant names fail generation.
 8. Review generated results.
 9. Publish or unpublish a certificate batch.
@@ -125,6 +125,7 @@ DRAFT
 Failures are tracked per participant/certificate and must not erase successful results.
 
 ## 7. Template Requirements
+The previous center-only name alignment constraint is superseded by the typography editor requirements below.
 Supported input:
 - PDF
 - PNG
@@ -136,7 +137,8 @@ Rules:
 - the system does not redesign or reflow template content
 - only participant name is dynamic in MVP
 - ADMIN can visually place the name area
-- the name area is horizontally centered by default
+- ADMIN configures the registered font family, variant, preferred font size, placement, maximum width, and left/center/right text alignment for the participant name only
+- the name field uses a center anchor; center is the backward-compatible default alignment
 - template must have an available/configured font asset suitable for rendering the participant name
 
 ## 8. CSV Requirements
@@ -166,7 +168,7 @@ Required behavior:
 
 1. Render from the configured default font size.
 2. If the name is too wide, decrease the font size until it fits or reaches minimum size.
-3. If it is still too wide at minimum font size, wrap into at most two centered lines.
+3. If it is still too wide at minimum font size, wrap into at most two lines using the configured alignment.
 4. If it still cannot fit safely, fail generation for that participant.
 5. Never silently clip, truncate, or overflow the participant name.
 
@@ -262,6 +264,7 @@ The MVP is acceptable when:
 - ADMIN can create a batch.
 - ADMIN can upload PDF, PNG, or JPG template.
 - ADMIN can visually configure the participant-name position.
+- ADMIN can save and reload the name font family, variant, preferred size, width, and alignment.
 - ADMIN can import a CSV containing only `name`.
 - invalid/empty names are surfaced before generation.
 - duplicate names generate an explicit warning but can be accepted.

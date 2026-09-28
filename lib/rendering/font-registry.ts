@@ -2,16 +2,31 @@ import path from "path";
 import fs from "fs/promises";
 import { FontNotConfiguredError } from "./errors";
 
-/**
- * Production Font Registry
- *
- * Maps approved font identifiers to project-bundled font asset files.
- * Currently NOT CONFIGURED for production per project decision.
- * The test-only font under tests/fixtures must NEVER be placed here.
- */
-export const PRODUCTION_FONT_REGISTRY: Readonly<Record<string, string>> = Object.freeze({
-  // Production fonts will be provisioned in a future phase.
-});
+export interface ProductionFont {
+  id: string;
+  family: "DM Sans";
+  weight: number;
+  label: string;
+  style: "normal" | "italic";
+  assetPath: string;
+}
+
+export const PRODUCTION_FONTS: readonly ProductionFont[] = Object.freeze([
+  { id: "dm-sans-light", family: "DM Sans", weight: 300, label: "Light", style: "normal", assetPath: "public/fonts/DMSans-Light.ttf" },
+  { id: "dm-sans-regular", family: "DM Sans", weight: 400, label: "Regular", style: "normal", assetPath: "public/fonts/DMSans-Regular.ttf" },
+  { id: "dm-sans-italic", family: "DM Sans", weight: 400, label: "Italic", style: "italic", assetPath: "public/fonts/DMSans-Italic.ttf" },
+  { id: "dm-sans-medium", family: "DM Sans", weight: 500, label: "Medium", style: "normal", assetPath: "public/fonts/DMSans-Medium.ttf" },
+  { id: "dm-sans-semibold", family: "DM Sans", weight: 600, label: "SemiBold", style: "normal", assetPath: "public/fonts/DMSans-SemiBold.ttf" },
+  { id: "dm-sans-bold", family: "DM Sans", weight: 700, label: "Bold", style: "normal", assetPath: "public/fonts/DMSans-Bold.ttf" },
+]);
+
+export const PRODUCTION_FONT_REGISTRY: Readonly<Record<string, string>> = Object.freeze(
+  Object.fromEntries(PRODUCTION_FONTS.map((font) => [font.id, font.assetPath]))
+);
+
+export function getProductionFont(identifier: string): ProductionFont | undefined {
+  return PRODUCTION_FONTS.find((font) => font.id === identifier);
+}
 
 /**
  * Isolated Test Font Registry
@@ -74,7 +89,7 @@ export async function resolveFontBytes(
 
   if (!relativeAssetPath) {
     throw new FontNotConfiguredError(
-      `Font asset identifier "${identifier}" is not configured in the font registry. Real production font remains NOT CONFIGURED.`
+      `Font asset identifier "${identifier}" is not configured in the font registry.`
     );
   }
 

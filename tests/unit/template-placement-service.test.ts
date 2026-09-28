@@ -62,6 +62,7 @@ type MockTxCallback = (tx: {
   };
   certificateTemplate: {
     updateMany: ReturnType<typeof vi.fn>;
+    findUnique?: ReturnType<typeof vi.fn>;
   };
 }) => Promise<unknown>;
 
@@ -248,5 +249,33 @@ describe("lib/templates - updateTemplatePlacement", () => {
         namePlacement: DEFAULT_NAME_PLACEMENT,
       },
     });
+  });
+
+  it("saves typography with placement while retaining the existing font configuration", async () => {
+    const mockUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
+    vi.mocked(prisma.$transaction).mockImplementationOnce(async (cb) => {
+      const typedCb = cb as unknown as MockTxCallback;
+      return typedCb({
+        certificateBatch: {
+          findFirst: vi.fn().mockResolvedValue({ id: mockBatchId, status: BatchStatus.DRAFT, templateId: mockTemplateId }),
+          updateMany: vi.fn(),
+        },
+        certificateTemplate: {
+          findUnique: vi.fn().mockResolvedValue({ fontConfig: { fontSize: 28, minFontSize: 18, lineHeightMultiplier: 1.6, textColor: { r: 0.2, g: 0.3, b: 0.4 }, stepSize: 2, customNote: "retain" } }),
+          updateMany: mockUpdateMany,
+        },
+      });
+    });
+    await updateTemplatePlacement(mockBatchId, {
+      templateId: mockTemplateId,
+      placement: { ...DEFAULT_NAME_PLACEMENT, alignment: "right" },
+      typography: { fontFamily: "DM Sans", fontAssetPath: "dm-sans-bold", fontSize: 32 },
+    });
+    expect(mockUpdateMany).toHaveBeenCalledWith(expect.objectContaining({ data: {
+      namePlacement: { ...DEFAULT_NAME_PLACEMENT, alignment: "right" },
+      fontFamily: "DM Sans",
+      fontAssetPath: "dm-sans-bold",
+      fontConfig: { fontSize: 32, minFontSize: 18, lineHeightMultiplier: 1.6, textColor: { r: 0.2, g: 0.3, b: 0.4 }, stepSize: 2, customNote: "retain" },
+    } }));
   });
 });

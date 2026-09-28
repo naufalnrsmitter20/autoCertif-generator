@@ -2,11 +2,14 @@
 
 import { useState, useRef, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Rnd } from "react-rnd";
+import type { PublicFontOption } from "@/lib/rendering/public-fonts";
 import {
   NamePlacement,
   DEFAULT_NAME_PLACEMENT,
   clampPlacement,
-  placementToCSSStyle,
+  ratioToPixelPlacement,
+  pixelToRatioPlacement,
 } from "@/lib/coordinates";
 
 export type TemplateFileType = "PDF" | "PNG" | "JPG";
@@ -25,14 +28,17 @@ interface TemplateInfo {
   pageWidth: number | null;
   pageHeight: number | null;
   namePlacement: unknown;
+  fontFamily: string | null;
+  fontAssetPath: string | null;
+  fontConfig: unknown;
 }
-
 interface PositionEditorClientProps {
   batchId: string;
   batchName: string;
   batchStatus: BatchStatus;
   template: TemplateInfo;
   previewUrl: string;
+  fonts: PublicFontOption[];
 }
 
 export function PositionEditorClient({
@@ -41,9 +47,14 @@ export function PositionEditorClient({
   batchStatus,
   template,
   previewUrl,
+  fonts,
 }: PositionEditorClientProps) {
   const router = useRouter();
   const [, startTransition] = useTransition();
+  const availableFonts = Array.isArray(fonts) ? fonts : [];
+  const defaultFont = availableFonts.find((font) => font.weight === 400 && font.style === "normal") ?? availableFonts[0] ?? null;
+  const initialFont = availableFonts.find((font) => font.id === template.fontAssetPath) ?? defaultFont;
+  const persistedFontUnavailable = Boolean(template.fontAssetPath) && !availableFonts.some((font) => font.id === template.fontAssetPath);
 
   // Initialize placement from persisted template.namePlacement or default
   const initialPlacement: NamePlacement = clampPlacement(
@@ -52,6 +63,13 @@ export function PositionEditorClient({
 
   const [placement, setPlacement] = useState<NamePlacement>(initialPlacement);
   const [savedPlacement, setSavedPlacement] = useState<NamePlacement>(initialPlacement);
+  const initialSize = typeof template.fontConfig === "object" && template.fontConfig !== null && "fontSize" in template.fontConfig && typeof template.fontConfig.fontSize === "number" ? template.fontConfig.fontSize : 28;
+  const minimumSize = typeof template.fontConfig === "object" && template.fontConfig !== null && "minFontSize" in template.fontConfig && typeof template.fontConfig.minFontSize === "number" ? template.fontConfig.minFontSize : 16;
+  const [fontId, setFontId] = useState(initialFont?.id ?? "");
+  const [savedFontId, setSavedFontId] = useState(template.fontAssetPath);
+  const [fontSize, setFontSize] = useState(initialSize);
+  const [savedFontSize, setSavedFontSize] = useState(initialSize);
+  const [surfaceSize, setSurfaceSize] = useState({ width: 0, height: 0 });
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -63,19 +81,20 @@ export function PositionEditorClient({
   const [pdfRendered, setPdfRendered] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
 
-  // Drag tracking state
-  const [isDragging, setIsDragging] = useState(false);
-  const dragStartRef = useRef<{
-    pointerX: number;
-    pointerY: number;
-    placement: NamePlacement;
-  } | null>(null);
-
   const isDraft = batchStatus === "DRAFT";
   const isDirty =
     Math.abs(placement.xRatio - savedPlacement.xRatio) > 0.0001 ||
     Math.abs(placement.yRatio - savedPlacement.yRatio) > 0.0001 ||
-    Math.abs(placement.maxWidthRatio - savedPlacement.maxWidthRatio) > 0.0001;
+    Math.abs(placement.maxWidthRatio - savedPlacement.maxWidthRatio) > 0.0001 ||
+    placement.alignment !== savedPlacement.alignment || fontId !== savedFontId || fontSize !== savedFontSize;
+
+  useEffect(() => {
+    const surface = surfaceRef.current;
+    if (!surface) return;
+    const observer = new ResizeObserver(([entry]) => setSurfaceSize({ width: entry.contentRect.width, height: entry.contentRect.height }));
+    observer.observe(surface);
+    return () => observer.disconnect();
+  }, []);
 
   // Aspect ratio calculation
   const pageWidth = template.pageWidth && template.pageWidth > 0 ? template.pageWidth : 842;
@@ -149,55 +168,6 @@ export function PositionEditorClient({
     };
   }, [template.fileType, previewUrl]);
 
-  // Pointer drag handlers
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDraft) return;
-
-    e.preventDefault();
-    e.currentTarget.setPointerCapture(e.pointerId);
-
-    setIsDragging(true);
-    dragStartRef.current = {
-      pointerX: e.clientX,
-      pointerY: e.clientY,
-      placement: { ...placement },
-    };
-  };
-
-  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDragging || !dragStartRef.current || !surfaceRef.current) return;
-
-    const surfaceRect = surfaceRef.current.getBoundingClientRect();
-    if (surfaceRect.width <= 0 || surfaceRect.height <= 0) return;
-
-    const deltaX = (e.clientX - dragStartRef.current.pointerX) / surfaceRect.width;
-    const deltaY = (e.clientY - dragStartRef.current.pointerY) / surfaceRect.height;
-
-    const candidateX = dragStartRef.current.placement.xRatio + deltaX;
-    const candidateY = dragStartRef.current.placement.yRatio + deltaY;
-
-    const nextPlacement = clampPlacement({
-      xRatio: candidateX,
-      yRatio: candidateY,
-      maxWidthRatio: dragStartRef.current.placement.maxWidthRatio,
-    });
-
-    setPlacement(nextPlacement);
-    setSaveSuccess(false);
-  };
-
-  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (isDragging) {
-      try {
-        e.currentTarget.releasePointerCapture(e.pointerId);
-      } catch {
-        // Ignored if pointer capture was already lost
-      }
-      setIsDragging(false);
-      dragStartRef.current = null;
-    }
-  };
-
   // Keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (!isDraft) return;
@@ -244,6 +214,7 @@ export function PositionEditorClient({
         xRatio: nextX,
         yRatio: nextY,
         maxWidthRatio: nextWidth,
+        alignment: placement.alignment,
       });
       setPlacement(updated);
       setSaveSuccess(false);
@@ -258,6 +229,7 @@ export function PositionEditorClient({
       xRatio: placement.xRatio,
       yRatio: placement.yRatio,
       maxWidthRatio: rawVal,
+      alignment: placement.alignment,
     });
     setPlacement(updated);
     setSaveSuccess(false);
@@ -266,13 +238,15 @@ export function PositionEditorClient({
   // Reset to last saved
   const handleReset = () => {
     setPlacement(savedPlacement);
+    setFontId(availableFonts.find((font) => font.id === savedFontId)?.id ?? defaultFont?.id ?? "");
+    setFontSize(savedFontSize);
     setSaveSuccess(false);
     setErrorMessage(null);
   };
 
   // Save placement to server
   const handleSave = async () => {
-    if (!isDraft) return;
+    if (!isDraft || !selectedFont) return;
 
     setIsSaving(true);
     setErrorMessage(null);
@@ -288,6 +262,7 @@ export function PositionEditorClient({
           body: JSON.stringify({
             templateId: template.id,
             placement,
+            typography: { fontFamily: selectedFont.family, fontAssetPath: selectedFont.id, fontSize },
           }),
         }
       );
@@ -306,6 +281,8 @@ export function PositionEditorClient({
       }
 
       setSavedPlacement(placement);
+      setSavedFontId(fontId);
+      setSavedFontSize(fontSize);
       setSaveSuccess(true);
       startTransition(() => {
         router.refresh();
@@ -319,7 +296,11 @@ export function PositionEditorClient({
     }
   };
 
-  const overlayStyles = placementToCSSStyle(placement);
+  const selectedFont = availableFonts.find((font) => font.id === fontId) ?? null;
+  const fontFamilies = [...new Set(availableFonts.map((font) => font.family))];
+  const familyFonts = availableFonts.filter((font) => font.family === selectedFont?.family);
+  const pixelPlacement = ratioToPixelPlacement(placement, surfaceSize.width, surfaceSize.height);
+  const boxHeight = Math.max(24, Math.min(surfaceSize.height, fontSize * surfaceSize.width / pageWidth * 1.7));
 
   return (
     <div
@@ -412,13 +393,37 @@ export function PositionEditorClient({
           <button
             type="button"
             onClick={handleSave}
-            disabled={!isDraft || isSaving || !isDirty}
+            disabled={!isDraft || isSaving || !isDirty || !selectedFont}
             data-testid="save-position-button"
             className="inline-flex items-center justify-center rounded-md bg-telkom-red hover:bg-telkom-red-dark px-4 py-1.5 text-xs font-semibold text-white shadow-xs focus:outline-none focus:ring-2 focus:ring-telkom-red focus:ring-offset-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            {isSaving ? "Saving..." : "Save Position"}
+            {isSaving ? "Saving..." : "Save Configuration"}
           </button>
         </div>
+      </div>
+
+      {availableFonts.length === 0 && <p role="alert" className="rounded-md border border-telkom-red-border bg-telkom-red-light p-3 text-sm text-telkom-red-dark">No production fonts are available. Configure a production font before saving this template.</p>}
+      {persistedFontUnavailable && availableFonts.length > 0 && <p role="alert" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">The previously saved font is unavailable. Select a registered font and save to update this template.</p>}
+      <div className="flex flex-wrap items-end gap-4 rounded-lg border border-zinc-200 bg-white p-4">
+        <label className="grid gap-1 text-xs font-medium text-zinc-700">Font
+          <select aria-label="Font" value={selectedFont?.family ?? ""} disabled={!isDraft || isSaving || availableFonts.length === 0} onChange={(event) => { setFontId(availableFonts.find((font) => font.family === event.target.value)?.id ?? ""); setSaveSuccess(false); }} className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm">
+            {fontFamilies.length === 0 && <option value="">No fonts available</option>}
+            {fontFamilies.map((family) => <option key={family} value={family}>{family}</option>)}
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs font-medium text-zinc-700">Weight
+          <select aria-label="Weight" value={fontId} disabled={!isDraft || isSaving || !selectedFont} onChange={(event) => { setFontId(event.target.value); setSaveSuccess(false); }} className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm">
+            {familyFonts.map((font) => <option key={font.id} value={font.id}>{font.label}</option>)}
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs font-medium text-zinc-700">Font Size (pt)
+          <input aria-label="Font Size" type="number" min={minimumSize} max="500" step="1" value={fontSize} disabled={!isDraft || isSaving || !selectedFont} onChange={(event) => { setFontSize(Number(event.target.value)); setSaveSuccess(false); }} className="w-28 rounded-md border border-zinc-300 px-3 py-2 text-sm" />
+        </label>
+        <fieldset className="grid gap-1 text-xs font-medium text-zinc-700"><legend>Alignment</legend>
+          <div className="flex rounded-md border border-zinc-300 p-0.5">
+            {(["left", "center", "right"] as const).map((alignment) => <button key={alignment} type="button" aria-label={`Align ${alignment}`} aria-pressed={placement.alignment === alignment} disabled={!isDraft || isSaving} onClick={() => { setPlacement({ ...placement, alignment }); setSaveSuccess(false); }} className={`rounded px-3 py-1.5 uppercase ${placement.alignment === alignment ? "bg-telkom-red text-white" : "text-zinc-700 hover:bg-zinc-100"}`}>{alignment}</button>)}
+          </div>
+        </fieldset>
       </div>
 
       {/* Error / Conflict Banner */}
@@ -453,7 +458,7 @@ export function PositionEditorClient({
           Drag the name field or use <kbd className="px-1 py-0.5 bg-zinc-100 border border-zinc-300 rounded font-mono">Arrow</kbd> keys (<kbd className="px-1 py-0.5 bg-zinc-100 border border-zinc-300 rounded font-mono">Shift</kbd> for faster move). Adjust width with slider or <kbd className="px-1 py-0.5 bg-zinc-100 border border-zinc-300 rounded font-mono">[</kbd> / <kbd className="px-1 py-0.5 bg-zinc-100 border border-zinc-300 rounded font-mono">]</kbd>.
         </p>
         <p className="italic text-zinc-500 text-[11px]">
-          Preview font shown for layout placement. Deterministic font asset will be configured prior to generation.
+          The preview uses the selected font. The final PDF uses measured font metrics.
         </p>
       </div>
 
@@ -501,21 +506,24 @@ export function PositionEditorClient({
           )}
 
           {/* Interactive Participant-Name Placement Overlay */}
-          <div
+          {surfaceSize.width > 0 && <Rnd
+            bounds="parent"
+            disableDragging={!isDraft}
+            enableResizing={isDraft ? { left: true, right: true } : false}
+            minWidth={surfaceSize.width * 0.1}
+            maxWidth={surfaceSize.width}
+            size={{ width: pixelPlacement.width, height: boxHeight }}
+            position={{ x: pixelPlacement.left, y: Math.max(0, Math.min(surfaceSize.height - boxHeight, pixelPlacement.centerY - boxHeight / 2)) }}
+            onDragStop={(_event, data) => { setPlacement(pixelToRatioPlacement(data.x + pixelPlacement.width / 2, data.y + boxHeight / 2, pixelPlacement.width, surfaceSize.width, surfaceSize.height, placement.alignment)); setSaveSuccess(false); }}
+            onResizeStop={(_event, _direction, element, _delta, position) => { const width = element.offsetWidth; setPlacement(pixelToRatioPlacement(position.x + width / 2, position.y + boxHeight / 2, width, surfaceSize.width, surfaceSize.height, placement.alignment)); setSaveSuccess(false); }}
+            style={{ zIndex: 1 }}
+          ><div
             tabIndex={isDraft ? 0 : -1}
             role="region"
             aria-label="Participant name placement area. Drag or use arrow keys to position."
             data-testid="participant-name-overlay"
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
             onKeyDown={handleKeyDown}
-            style={overlayStyles}
-            className={`absolute flex items-center justify-center cursor-move select-none transition-shadow touch-none focus:outline-none focus:ring-2 focus:ring-telkom-red focus:ring-offset-1 rounded ${
-              isDragging
-                ? "border-2 border-telkom-red bg-telkom-red/10 shadow-lg"
-                : "border-2 border-dashed border-telkom-red/80 hover:border-telkom-red bg-telkom-red/5"
-            }`}
+            className="flex h-full w-full items-center cursor-move select-none rounded border-2 border-dashed border-telkom-red/80 bg-telkom-red/5 focus:outline-none focus:ring-2 focus:ring-telkom-red"
           >
             {/* Center Anchor Point Indicator */}
             <div
@@ -525,10 +533,10 @@ export function PositionEditorClient({
             />
 
             {/* Realistic Sample Participant Name */}
-            <span className="text-charcoal font-semibold text-center truncate px-2 py-1.5 text-sm sm:text-base pointer-events-none w-full">
+            <span className="pointer-events-none w-full px-2 text-charcoal" style={{ fontFamily: selectedFont ? `"DM Sans Preview"` : "inherit", fontWeight: selectedFont?.weight, fontStyle: selectedFont?.style, fontSize: `${fontSize * surfaceSize.width / pageWidth}px`, textAlign: placement.alignment }}>
               Nama Lengkap Peserta
             </span>
-          </div>
+          </div></Rnd>}
         </div>
       </div>
     </div>

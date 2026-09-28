@@ -9,7 +9,7 @@ export interface NamePlacement {
   xRatio: number;
   yRatio: number;
   maxWidthRatio: number;
-  alignment: "center";
+  alignment: "left" | "center" | "right";
 }
 
 export const DEFAULT_NAME_PLACEMENT: NamePlacement = {
@@ -56,9 +56,7 @@ export const namePlacementSchema = z
       .finite("maxWidthRatio must be finite")
       .min(0.1, "maxWidthRatio must be at least 0.1")
       .max(1.0, "maxWidthRatio must be at most 1.0"),
-    alignment: z.literal("center", {
-      message: "alignment must be 'center'",
-    }),
+    alignment: z.enum(["left", "center", "right"]).default("center"),
   })
   .refine(
     (data) => {
@@ -100,7 +98,7 @@ export function clampPlacement(candidate: Partial<NamePlacement>): NamePlacement
     xRatio,
     yRatio,
     maxWidthRatio,
-    alignment: "center",
+    alignment: candidate.alignment === "left" || candidate.alignment === "right" ? candidate.alignment : "center",
   };
 }
 
@@ -139,7 +137,8 @@ export function pixelToRatioPlacement(
   centerY: number,
   width: number,
   surfaceWidth: number,
-  surfaceHeight: number
+  surfaceHeight: number,
+  alignment: NamePlacement["alignment"] = "center"
 ): NamePlacement {
   if (surfaceWidth <= 0 || surfaceHeight <= 0) {
     return DEFAULT_NAME_PLACEMENT;
@@ -153,6 +152,7 @@ export function pixelToRatioPlacement(
     xRatio,
     yRatio,
     maxWidthRatio,
+    alignment,
   });
 }
 

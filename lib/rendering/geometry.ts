@@ -145,7 +145,9 @@ export function checkVerticalPageSafety(
 /**
  * Calculates horizontal start coordinate (left edge of text) for center alignment.
  */
-export function calculateStartX(centerX: number, textWidth: number): number {
+export function calculateStartX(centerX: number, textWidth: number, maxWidth?: number, alignment: NamePlacement["alignment"] = "center"): number {
+  if (alignment === "left") return centerX - (maxWidth ?? textWidth) / 2;
+  if (alignment === "right") return centerX + (maxWidth ?? textWidth) / 2 - textWidth;
   return centerX - textWidth / 2;
 }
 

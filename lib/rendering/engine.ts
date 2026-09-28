@@ -156,6 +156,7 @@ export async function renderSingleCertificate(
       maxWidth,
       pageHeight,
       style: input.style,
+      alignment: input.placement.alignment,
     });
 
     // Draw all lines from the layout plan
@@ -302,6 +303,7 @@ export async function renderSingleCertificate(
       maxWidth,
       pageHeight,
       style: input.style,
+      alignment: input.placement.alignment,
     });
 
     // Draw all lines from the layout plan

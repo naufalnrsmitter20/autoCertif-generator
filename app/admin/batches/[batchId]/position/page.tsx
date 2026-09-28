@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/auth/guard";
 import { getActiveBatchById } from "@/lib/batches";
 import { getTemplatePreviewSignedUrl } from "@/lib/templates";
 import { PositionEditorClient } from "./position-editor-client";
+import { getAvailableProductionFonts } from "@/lib/rendering/public-fonts";
 
 export const metadata = {
   title: "Name Position Editor | AutoCertif Admin",
@@ -32,6 +33,7 @@ export default async function PositionPage({ params }: PositionPageProps) {
   } catch (error) {
     console.error("Failed to generate template preview URL:", error);
   }
+  const availableFonts = getAvailableProductionFonts();
 
   return (
     <div className="space-y-6">
@@ -61,7 +63,11 @@ export default async function PositionPage({ params }: PositionPageProps) {
           pageWidth: batch.template.pageWidth,
           pageHeight: batch.template.pageHeight,
           namePlacement: batch.template.namePlacement,
+          fontFamily: batch.template.fontFamily,
+          fontAssetPath: batch.template.fontAssetPath,
+          fontConfig: batch.template.fontConfig,
         }}
+        fonts={availableFonts}
         previewUrl={previewUrl}
       />
     </div>

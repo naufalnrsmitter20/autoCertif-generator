@@ -4,8 +4,11 @@ import {
   registerTestFont,
   clearTestFontRegistry,
   PRODUCTION_FONT_REGISTRY,
+  PRODUCTION_FONTS,
 } from "@/lib/rendering/font-registry";
 import { FontNotConfiguredError } from "@/lib/rendering/errors";
+import { PDFDocument } from "pdf-lib";
+import fontkit from "@pdf-lib/fontkit";
 
 describe("Font Registry & Asset Resolution", () => {
   beforeEach(() => {
@@ -16,8 +19,22 @@ describe("Font Registry & Asset Resolution", () => {
     clearTestFontRegistry();
   });
 
-  it("verifies production font registry is empty (production font NOT CONFIGURED)", () => {
-    expect(Object.keys(PRODUCTION_FONT_REGISTRY)).toHaveLength(0);
+  it("resolves every bundled DM Sans variant without exposing the test fixture", async () => {
+    expect(PRODUCTION_FONTS.map((font) => font.id)).toEqual([
+      "dm-sans-light", "dm-sans-regular", "dm-sans-italic", "dm-sans-medium", "dm-sans-semibold", "dm-sans-bold",
+    ]);
+    expect(Object.values(PRODUCTION_FONT_REGISTRY)).not.toContain("tests/fixtures/fonts/test-font.ttf");
+    for (const font of PRODUCTION_FONTS) {
+      expect((await resolveFontBytes(font.id)).length).toBeGreaterThan(1000);
+    }
+  });
+
+  it("embeds a selected production weight in a PDF", async () => {
+    const document = await PDFDocument.create();
+    document.registerFontkit(fontkit);
+    const font = await document.embedFont(await resolveFontBytes("dm-sans-semibold"));
+    expect(font.widthOfTextAtSize("Participant Name", 28)).toBeGreaterThan(0);
+    expect((await document.save()).length).toBeGreaterThan(1000);
   });
 
   it("throws FontNotConfiguredError when fontAssetPath is null, undefined, or blank", async () => {
@@ -31,9 +48,7 @@ describe("Font Registry & Asset Resolution", () => {
     await expect(resolveFontBytes("unregistered-font")).rejects.toThrow(
       FontNotConfiguredError
     );
-    await expect(resolveFontBytes("unregistered-font")).rejects.toThrow(
-      /Real production font remains NOT CONFIGURED/
-    );
+    await expect(resolveFontBytes("unregistered-font")).rejects.toThrow(/not configured in the font registry/);
   });
 
   it("resolves registered test font bytes in test environment", async () => {

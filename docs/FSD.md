@@ -1,6 +1,7 @@
 # AutoCertif — Functional & System Design
 
 ## 1. Purpose
+The previous center-only placement and rendering constraint is superseded: alignment is now left, center, or right inside the same center-anchored name box.
 This document defines how AutoCertif behaves technically. It translates `PRD.md` into a deterministic implementation contract without turning the project into an over-engineered platform.
 
 ## 2. Architecture
@@ -160,7 +161,7 @@ export type NamePlacement = {
   xRatio: number;        // Normalized horizontal center: [maxWidthRatio / 2, 1 - maxWidthRatio / 2]
   yRatio: number;        // Normalized vertical center: [0.0, 1.0]
   maxWidthRatio: number; // Normalized maximum allowed width: [0.1, 1.0]
-  alignment: "center";   // Fixed invariant: "center"
+  alignment: "left" | "center" | "right"; // Legacy missing value defaults to center
 };
 ```
 - Spatial placement is completely decoupled from font sizing and text fitting.
@@ -195,7 +196,10 @@ MVP editor supports the participant-name field only.
 
 Required behavior:
 - visual template preview using Mozilla PDF.js canvas rendering (for PDF templates) or high-DPI image element (for PNG/JPG)
-- one draggable participant-name placeholder with center alignment
+- one draggable, horizontally resizable participant-name box with left/center/right alignment and a fixed center anchor
+- ADMIN selects a registered production font family and variant plus preferred font size; browser preview loads the local font asset
+- save atomically validates and stores placement, font family, font registry ID, and fontConfig; existing min size, line height, color, and step size are retained
+- initial fontConfig uses 28 pt preferred size, 16 pt minimum, 1.5 line height (safe for DM Sans two-line metrics), black text, and 1 pt fit step when none was previously saved; opening the editor does not persist it
 - slider control for maximum allowed width ($maxWidthRatio$) with immediate $xRatio$ bounds recalculation and clamping
 - keyboard positioning support (Arrow keys for 1% step, Shift+Arrow for 5% step)
 - live coordinate readout ($X$, $Y$, $Width$ in percentages)
@@ -231,11 +235,11 @@ generate descending candidate font sizes [defaultFontSize, ..., minFontSize]
 ↓
 single-line fitting loop (largest font size first):
   fits horizontally (width <= maxWidth) AND vertically safe (top <= pageHeight, bottom >= 0)?
-   ├─ yes → render single centered line
+   ├─ yes → render one line within the box using configured alignment
    └─ no → continue descending
 ↓
 single-line fits?
- ├─ yes → render single centered line
+ ├─ yes → render one line within the box using configured alignment
  └─ no
       ↓
       words < 2 (single unbroken word)?
@@ -257,7 +261,7 @@ single-line fits?
               4. earliest split index (deterministic tie-break)
             ↓
             valid candidate exists?
-             ├─ yes → render two centered lines
+             ├─ yes → render two lines within the box using configured alignment
              └─ no → fail generation with typed NameDoesNotFitError (TWO_LINE_OVERFLOW / VERTICAL_OVERFLOW)
 ```
 
