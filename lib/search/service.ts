@@ -26,26 +26,21 @@ export async function searchPublishedCertificates(
 ): Promise<SearchQueryResult> {
   const normalized = normalizeSearchQuery(rawQuery);
 
-  if (normalized === null) {
-    return { status: "empty_query" };
-  }
-
-  if (normalized.length > TECHNICAL_MAX_SEARCH_QUERY_LENGTH) {
+  if (normalized !== null && normalized.length > TECHNICAL_MAX_SEARCH_QUERY_LENGTH) {
     return {
       status: "invalid_length",
       message: `Search query exceeds technical maximum length of ${TECHNICAL_MAX_SEARCH_QUERY_LENGTH} characters.`,
     };
   }
 
-  const escaped = escapeLikePattern(normalized);
+  const escaped = normalized === null ? null : escapeLikePattern(normalized);
 
   const certificates = await withPrismaConnectionRetry(() => prisma.certificate.findMany({
     where: {
       deletedAt: null,
       publishedName: {
         not: null,
-        contains: escaped,
-        mode: "insensitive",
+        ...(escaped === null ? {} : { contains: escaped, mode: "insensitive" as const }),
       },
       publishedFilePath: {
         not: null,
@@ -72,7 +67,7 @@ export async function searchPublishedCertificates(
 
   return {
     status: "success",
-    query: normalized,
+    query: normalized ?? "",
     results: certificates.map((c) => ({
       certificateId: c.id,
       publishedName: c.publishedName!,

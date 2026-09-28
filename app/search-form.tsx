@@ -25,7 +25,6 @@ export function SearchForm({ initialQuery = "" }: SearchFormProps) {
   function handleClear() {
     setQuery("");
     inputRef.current?.focus();
-    router.push("/");
   }
 
   return (

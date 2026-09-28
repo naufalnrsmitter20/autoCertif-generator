@@ -4,6 +4,12 @@
 **Phase:** Phase 14 — Full E2E + Regression; template typography enhancement implemented
 **Status:** IN PROGRESS — typography editor smoke E2E passes; full PDF editor flow remains blocked intermittently at ADMIN login by database connection failures. Phase 13 remains accepted.
 
+## 2026-09-28 — Public certificate search on blank query
+
+- The public page now lists every eligible published certificate on initial load and after an empty search submission. Typing and clearing the input leave displayed results in place until form submission; Enter also submits.
+- The existing publication filters, published-name matching, ordering, and public DTO are retained. FSD and focused service/browser tests reflect the new blank-query contract.
+- Verified: `bun run typecheck` passed; `bun run lint` passed with two unrelated existing unused-variable warnings; focused public-search unit tests passed (29/29); focused public-search Playwright spec passed (2/2) against the local server.
+
 
 ## 2026-09-28 - Font configuration saved to active template (Testing Manual #1)
 

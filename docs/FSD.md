@@ -528,10 +528,11 @@ Unauthenticated, public search for certificates hosted at the root route (`/`).
 - Query parameter: `q` (`/?q=<name>`)
 - Form method: `GET` to root `/`
 - Query normalization:
-  - Non-string or null/undefined queries return initial empty state.
+  - Missing or non-string queries show all eligible published certificates.
   - Query string is trimmed of leading and trailing whitespace.
-  - Empty or whitespace-only queries return no results (does not return all certificates).
+  - Empty or whitespace-only queries show all eligible published certificates.
   - Maximum query length safety guard: 1,000 characters (technical transport protection; domain does not artificially cap names below valid bounds).
+- Typing does not run a search. Form submission (including Enter) applies the query; submitting a cleared query shows all eligible published certificates again.
 - Substring matching:
   - Case-insensitive substring matching (`contains: escapedQuery, mode: "insensitive"` in Prisma, mapping to PostgreSQL `ILIKE %query%`).
   - Wildcard escaping: literal characters `%`, `_`, and `\` are escaped to `\%`, `\_`, and `\\` prior to database querying to prevent wildcard leakage.

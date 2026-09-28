@@ -117,13 +117,18 @@ describe("Public Certificate Search Service — Publication Snapshot Contract", 
     }
   });
 
-  // E. Empty query returns zero results without querying database
-  it("E. returns empty_query status for empty or whitespace query", async () => {
+  // E. Blank queries list eligible published certificates
+  it("E. returns published certificates for empty or whitespace query", async () => {
     const emptyRes = await searchPublishedCertificates("");
-    expect(emptyRes.status).toBe("empty_query");
-
     const wsRes = await searchPublishedCertificates("     ");
-    expect(wsRes.status).toBe("empty_query");
+    expect(emptyRes.status).toBe("success");
+    expect(wsRes.status).toBe("success");
+    if (emptyRes.status === "success" && wsRes.status === "success") {
+      expect(emptyRes.query).toBe("");
+      expect(wsRes.query).toBe("");
+      expect(emptyRes.results).toEqual(wsRes.results);
+      expect(emptyRes.results.some((r) => r.publishedName === "Naufal Nabil Ramadhan")).toBe(true);
+    }
   });
 
   // F. Duplicate names: 2 distinct published certificates with identical name return both

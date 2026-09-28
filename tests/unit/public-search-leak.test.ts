@@ -56,9 +56,10 @@ describe("Public Search Security & Privacy — Zero Field Leakage", () => {
   });
 
   it("strictly serializes ONLY certificateId and publishedName without internal fields", async () => {
-    const res = await searchPublishedCertificates("Confidential Subject");
-    expect(res.status).toBe("success");
-    if (res.status === "success") {
+    for (const query of ["Confidential Subject", ""]) {
+      const res = await searchPublishedCertificates(query);
+      expect(res.status).toBe("success");
+      if (res.status !== "success") continue;
       expect(res.results.length).toBeGreaterThanOrEqual(1);
       const match = res.results.find((r) => r.publishedName === "Confidential Subject");
       expect(match).toBeDefined();

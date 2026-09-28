@@ -198,7 +198,14 @@ test.describe("Public Certificate Search Flow (Phase 12)", () => {
     await page.goto("/");
     await expect(page).toHaveURL("/");
     await expect(page.locator('[data-testid="public-search-title"]')).toHaveText("Search Your Certificate");
-    await expect(page.locator('[data-testid="search-initial-state"]')).toBeVisible();
+    const results = page.locator('[data-testid^="search-result-item-"]');
+    await expect(page.locator('[data-testid="search-results-summary"]')).toContainText("published certificates");
+    for (const id of ["c1", "c2", "c3", "c4"]) {
+      await expect(page.locator(`[data-testid="search-result-item-${id}-search-${timestamp}"]`)).toBeVisible();
+    }
+    for (const id of ["c5", "c6"]) {
+      await expect(page.locator(`[data-testid="search-result-item-${id}-search-${timestamp}"]`)).toHaveCount(0);
+    }
 
     const searchInput = page.locator('[data-testid="public-search-input"]');
     const searchSubmit = page.locator('[data-testid="public-search-submit"]');
@@ -211,8 +218,12 @@ test.describe("Public Certificate Search Flow (Phase 12)", () => {
       await page.waitForURL((url) => url.searchParams.get("q") === name);
     };
 
-    // 2. Partial lowercase search using unique name: p1Name.toLowerCase()
-    await submitSearch(p1Name.toLowerCase());
+    // 2. Typing leaves the current results visible; Enter applies the search.
+    await searchInput.fill(p1Name.toLowerCase());
+    await expect(page).toHaveURL("/");
+    await expect(page.locator(`[data-testid="search-result-item-c2-search-${timestamp}"]`)).toBeVisible();
+    await searchInput.press("Enter");
+    await page.waitForURL((url) => url.searchParams.get("q") === p1Name.toLowerCase());
 
     await expect(page.locator('[data-testid="search-results-summary"]')).toContainText(`Found 1 certificate for “${p1Name.toLowerCase()}”`);
     await expect(page.locator(`[data-testid="search-result-item-c1-search-${timestamp}"]`)).toBeVisible();
@@ -252,12 +263,18 @@ test.describe("Public Certificate Search Flow (Phase 12)", () => {
     await expect(page.locator('[data-testid="search-results-summary"]')).toContainText(oldPublishedName);
     await expect(page.locator(`[data-testid="search-result-item-c4-search-${timestamp}"]`)).toBeVisible();
 
-    // 6. Clear search returns to initial state
+    // 6. Clearing the input leaves filtered results until the form is submitted.
     const clearBtn = page.locator('[data-testid="clear-search-button"]');
     await expect(clearBtn).toBeVisible();
     await clearBtn.click();
+    await expect(searchInput).toHaveValue("");
+    await expect(page).toHaveURL(`/?q=${encodeURIComponent(oldPublishedName)}`);
+    await expect(results).toHaveCount(1);
+    await searchSubmit.click();
     await expect(page).toHaveURL("/");
-    await expect(page.locator('[data-testid="search-initial-state"]')).toBeVisible();
+    for (const id of ["c1", "c2", "c3", "c4"]) {
+      await expect(page.locator(`[data-testid="search-result-item-${id}-search-${timestamp}"]`)).toBeVisible();
+    }
   });
 
   test("responsive layout: no horizontal overflow on mobile and desktop viewports", async ({ page }) => {

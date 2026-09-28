@@ -12,7 +12,5 @@ export type PublicCertificateSearchResult = {
 };
 
 export type SearchQueryResult =
-  | { status: "initial" }
-  | { status: "empty_query" }
   | { status: "invalid_length"; message: string }
   | { status: "success"; query: string; results: PublicCertificateSearchResult[] };

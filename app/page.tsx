@@ -20,7 +20,7 @@ export default async function HomePage({ searchParams }: PageProps) {
   const rawQ = params.q;
   const query = typeof rawQ === "string" ? rawQ.trim() : "";
 
-  const searchResult = query.length > 0 ? await searchPublishedCertificates(query) : null;
+  const searchResult = await searchPublishedCertificates(query);
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
@@ -64,31 +64,7 @@ export default async function HomePage({ searchParams }: PageProps) {
 
           {/* Search Result States */}
           <section aria-label="Search results" className="space-y-4">
-            {/* 1. INITIAL STATE: No search initiated */}
-            {!searchResult && (
-              <div
-                data-testid="search-initial-state"
-                className="rounded-lg border border-dashed border-zinc-200 p-8 text-center dark:border-zinc-800"
-              >
-                <p className="text-sm text-neutral-gray dark:text-zinc-400">
-                  Search for your certificate by participant name.
-                </p>
-              </div>
-            )}
-
-            {/* 2. EMPTY QUERY: Whitespace query submitted */}
-            {searchResult?.status === "empty_query" && (
-              <div
-                data-testid="search-empty-state"
-                className="rounded-lg border border-dashed border-zinc-200 p-8 text-center dark:border-zinc-800"
-              >
-                <p className="text-sm text-neutral-gray dark:text-zinc-400">
-                  Please enter a participant name to search.
-                </p>
-              </div>
-            )}
-
-            {/* 3. INVALID / OVERSIZED INPUT STATE */}
+            {/* INVALID / OVERSIZED INPUT STATE */}
             {searchResult?.status === "invalid_length" && (
               <div
                 role="alert"
@@ -99,7 +75,7 @@ export default async function HomePage({ searchParams }: PageProps) {
               </div>
             )}
 
-            {/* 4. SUCCESS: RESULTS OR NO RESULTS */}
+            {/* RESULTS OR NO RESULTS */}
             {searchResult?.status === "success" && (
               <>
                 {searchResult.results.length === 0 ? (
@@ -109,11 +85,11 @@ export default async function HomePage({ searchParams }: PageProps) {
                     className="rounded-lg border border-zinc-200 bg-white p-8 text-center space-y-2 dark:border-zinc-800 dark:bg-zinc-900"
                   >
                     <p className="text-sm font-medium text-charcoal dark:text-zinc-200">
-                      No published certificate found for &ldquo;{searchResult.query}&rdquo;.
+                      {query ? <>No published certificate found for &ldquo;{searchResult.query}&rdquo;.</> : "No published certificates available."}
                     </p>
-                    <p className="text-xs text-neutral-gray dark:text-zinc-400">
+                    {query && <p className="text-xs text-neutral-gray dark:text-zinc-400">
                       Please check the spelling of your name or verify that your certificate batch has been published.
-                    </p>
+                    </p>}
                   </div>
                 ) : (
                   /* RESULTS STATE */
@@ -122,7 +98,7 @@ export default async function HomePage({ searchParams }: PageProps) {
                       data-testid="search-results-summary"
                       className="text-xs font-medium text-neutral-gray dark:text-zinc-400"
                     >
-                      Found {searchResult.results.length} certificate{searchResult.results.length === 1 ? "" : "s"} for &ldquo;{searchResult.query}&rdquo;
+                      {query ? <>Found {searchResult.results.length} certificate{searchResult.results.length === 1 ? "" : "s"} for &ldquo;{searchResult.query}&rdquo;</> : <>Showing {searchResult.results.length} published certificate{searchResult.results.length === 1 ? "" : "s"}</>}
                     </p>
 
                     <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 bg-white shadow-xs dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">

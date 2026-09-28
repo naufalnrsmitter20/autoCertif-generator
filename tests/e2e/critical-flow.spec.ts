@@ -127,7 +127,7 @@ test.describe("Critical Cross-Phase E2E Flow", () => {
       await page.goto("/");
       await expect(page).toHaveURL("/");
       await expect(page.locator('[data-testid="public-search-title"]')).toHaveText("Search Your Certificate");
-      await expect(page.locator('[data-testid="search-initial-state"]')).toBeVisible();
+      await expect(page.locator('[aria-label="Search results"]')).toBeVisible();
 
       // ────────────────────────────────────────────────────────────────────────
       // Step 2: ADMIN Login
