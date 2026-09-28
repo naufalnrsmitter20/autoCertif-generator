@@ -1,8 +1,27 @@
-# AutoCertif — Project Log
+﻿# AutoCertif — Project Log
 
 ## Current State
 **Phase:** Phase 14 — Full E2E + Regression; template typography enhancement implemented
 **Status:** IN PROGRESS — typography editor smoke E2E passes; full PDF editor flow remains blocked intermittently at ADMIN login by database connection failures. Phase 13 remains accepted.
+
+
+## 2026-09-28 - Font configuration saved to active template (Testing Manual #1)
+
+**Root cause.** Both manual test batches had saved namePlacement but null fontFamily, fontAssetPath, and fontConfig. The earlier saves predated commit e38ad44 (typography additions) and used the placement-only code path, which never wrote font fields. Generation preflight (lib/generation/preflight.ts:112) hard-blocks on a null fontAssetPath with: `Deterministic font asset is not configured for this template. Real production font remains NOT CONFIGURED.`
+
+**Fix.** Data repair only - no source code changed. Template cmukzr4250005dsucd38u65dt (Testing Manual #1) was updated through the live authenticated save endpoint with fontAssetPath dm-sans-bold, fontFamily DM Sans, fontSize 28.
+
+**Font config before/after.**
+- Before: fontFamily = null, fontAssetPath = null, fontConfig = null
+- After: fontFamily = DM Sans, fontAssetPath = dm-sans-bold, fontConfig = { fontSize: 28, minFontSize: 16, lineHeightMultiplier: 1.5, textColor: { r:0,g:0,b:0 }, stepSize: 1 }
+
+**Registry key and resolved file.** dm-sans-bold resolves to public/fonts/DMSans-Bold.ttf (56,268 bytes, valid TrueType).
+
+**Generation result after fix.** FontNotConfiguredError is gone. POST /api/admin/batches/cmukzqf5y0004dsuctphyumku/generation now returns 400 for a different reason: unsupported PDF geometry (CropBox Y origin = 8.58 pt, not 0). This is a pre-existing constraint on the uploaded PDF, unrelated to the font fix. Generation preflight is intact.
+
+**Verification.** bun run typecheck passed (0 errors). bun run lint passed (0 errors, 1 pre-existing warning). 36 focused unit tests passed (generation-preflight, template-placement-service, font-registry, rendering-font, typography-placement). DB confirmed: fontAssetPath = dm-sans-bold, fontConfig present, namePlacement retained.
+
+**Remaining.** Testing Manual batch also has null typography. Both manual test PDFs have a non-zero CropBox Y; a conforming PDF template is required for generation to succeed end-to-end.
 
 ## 2026-09-28 — Participant CSV template download
 

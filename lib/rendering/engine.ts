@@ -1,4 +1,4 @@
-import { PDFDocument, rgb } from "pdf-lib";
+﻿import { PDFDocument, rgb } from "pdf-lib";
 import sharp, { Metadata } from "sharp";
 import { TemplateFileType } from "@/generated/prisma/client";
 import { NamePlacement } from "@/lib/coordinates";
@@ -111,12 +111,13 @@ export async function renderSingleCertificate(
 
     const page = doc.getPage(0);
 
-    // Validate PDF geometry: 0 degree rotation, MediaBox === CropBox, UserUnit === 1
-    validatePdfPageGeometry(page);
+    // Validate PDF geometry: 0 degree rotation, CropBox === MediaBox, UserUnit === 1.
+    // Returns the visible CropBox (may have non-zero x/y origin).
+    const cropBox = validatePdfPageGeometry(page);
+    const pageWidth = cropBox.width;
+    const pageHeight = cropBox.height;
 
-    const { width: pageWidth, height: pageHeight } = page.getSize();
-
-    // Verify stored metadata consistency if provided
+    // Verify stored metadata consistency against the visible CropBox dimensions.
     if (
       typeof input.template.pageWidth === "number" &&
       typeof input.template.pageHeight === "number"
@@ -125,7 +126,7 @@ export async function renderSingleCertificate(
       const hDiff = Math.abs(pageHeight - input.template.pageHeight);
       if (wDiff > 1.0 || hDiff > 1.0) {
         throw new TemplateRenderError(
-          `Persisted template metadata (${input.template.pageWidth}x${input.template.pageHeight}) does not match actual PDF dimensions (${pageWidth}x${pageHeight}).`
+          `Persisted template metadata (${input.template.pageWidth}x${input.template.pageHeight}) does not match actual PDF CropBox dimensions (${pageWidth}x${pageHeight}).`
         );
       }
     }
@@ -140,7 +141,7 @@ export async function renderSingleCertificate(
     // Validate font glyph support for full Unicode code points
     validateFontGlyphSupport(font, normalizedName, input.font.fontFamily);
 
-    // Transform coordinates
+    // Image-based pages always have zero origin (drawn from (0,0) to (pageWidth, pageHeight)).
     const { centerX, centerYFromBottom, maxWidth } = calculatePdfCenterCoordinates(
       input.placement,
       pageWidth,
@@ -287,7 +288,7 @@ export async function renderSingleCertificate(
     // Validate glyph support for full Unicode code points
     validateFontGlyphSupport(font, normalizedName, input.font.fontFamily);
 
-    // Transform coordinates
+    // Image-based pages always have zero origin (drawn from (0,0) to (pageWidth, pageHeight)).
     const { centerX, centerYFromBottom, maxWidth } = calculatePdfCenterCoordinates(
       input.placement,
       pageWidth,

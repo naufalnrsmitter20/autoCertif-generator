@@ -1,4 +1,4 @@
-# AutoCertif — Functional & System Design
+﻿# AutoCertif — Functional & System Design
 
 ## 1. Purpose
 The previous center-only placement and rendering constraint is superseded: alignment is now left, center, or right inside the same center-anchored name box.
@@ -187,8 +187,8 @@ export type NamePlacement = {
   - Missing/undefined density defaults to **300 DPI** as an implementation technical fallback (never written into source metadata).
   - Physical points: $\text{points} = \frac{\text{pixels} \times 72}{\text{dpi}}$.
 - **PDF Geometry Contract**:
-  Single-page PDFs are supported only when `rotation === 0`, `CropBox === MediaBox` with origin $(0, 0)$, and `UserUnit` is absent or 1.0; otherwise throws `UnsupportedTemplateGeometryError`.
-- **Image Orientation Contract**:
+  Single-page PDFs are supported when `rotation === 0`, `CropBox === MediaBox` in all four dimensions (x, y, width, height), and `UserUnit` is absent or 1.0; otherwise throws `UnsupportedTemplateGeometryError`.
+  A non-zero CropBox/MediaBox origin (e.g. CropBox.y = 8.58 pt) is accepted as of Phase 7 revision. The visible CropBox is the rendering surface: `xRatio`/`yRatio`/`maxWidthRatio` are relative to `cropBox.width`/`cropBox.height`, and the CropBox origin offsets PDF user-space coordinates so text lands correctly on pages whose boxes do not start at (0, 0).- **Image Orientation Contract**:
   EXIF orientations $2..8$ throw `UnsupportedTemplateGeometryError` to prevent silent auto-rotation or re-encoding.
 
 ## 7. Template Positioning Editor

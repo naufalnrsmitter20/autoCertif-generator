@@ -1,4 +1,4 @@
-import { PDFPage, PDFName, PDFNumber } from "pdf-lib";
+﻿import { PDFPage, PDFName, PDFNumber } from "pdf-lib";
 import { NamePlacement, namePlacementSchema } from "@/lib/coordinates";
 import {
   InvalidNamePlacementError,
@@ -31,20 +31,47 @@ export interface ImagePdfDimensions {
   isFallbackDpi: boolean;
 }
 
+/**
+ * The visible CropBox of a PDF page, expressed in PDF user-space points.
+ * Origin (x, y) is the bottom-left corner of the CropBox in the page's
+ * MediaBox coordinate space. Width and height are the visible dimensions.
+ */
+export interface PdfCropBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 const GEOMETRY_TOLERANCE_POINTS = 0.01;
 
 /**
  * Validates and transforms Phase 5 normalized spatial coordinates (Top-Left origin)
- * into bottom-left anchored PDF page coordinates.
+ * into PDF page coordinates relative to the visible CropBox.
+ *
+ * The CropBox is treated as the certificate rendering surface. xRatio/yRatio/
+ * maxWidthRatio are fractions of the CropBox width/height. The resulting
+ * centerX and centerYFromBottom are absolute PDF user-space coordinates that
+ * account for any non-zero CropBox origin offset.
+ *
+ * When cropBoxOrigin is omitted (or {x:0, y:0}), behaviour is identical to
+ * the previous single-argument form, so all image-path and zero-origin PDF
+ * callers are unaffected.
  */
 export function calculatePdfCenterCoordinates(
   placement: NamePlacement,
-  pageWidth: number,
-  pageHeight: number
+  cropBoxWidth: number,
+  cropBoxHeight: number,
+  cropBoxOrigin: { x: number; y: number } = { x: 0, y: 0 }
 ): PdfCenterCoordinates {
-  if (pageWidth <= 0 || pageHeight <= 0 || !Number.isFinite(pageWidth) || !Number.isFinite(pageHeight)) {
+  if (
+    cropBoxWidth <= 0 ||
+    cropBoxHeight <= 0 ||
+    !Number.isFinite(cropBoxWidth) ||
+    !Number.isFinite(cropBoxHeight)
+  ) {
     throw new InvalidNamePlacementError(
-      `Invalid page dimensions for coordinate transformation: width=${pageWidth}, height=${pageHeight}`
+      `Invalid page dimensions for coordinate transformation: width=${cropBoxWidth}, height=${cropBoxHeight}`
     );
   }
 
@@ -56,9 +83,15 @@ export function calculatePdfCenterCoordinates(
   }
 
   const validPlacement = parseResult.data;
-  const centerX = validPlacement.xRatio * pageWidth;
-  const centerYFromBottom = (1 - validPlacement.yRatio) * pageHeight;
-  const maxWidth = validPlacement.maxWidthRatio * pageWidth;
+
+  // Placement ratios are relative to the CropBox surface.
+  // centerX / centerYFromBottom are absolute PDF user-space coordinates:
+  //   centerX            = cropBoxOrigin.x + xRatio * cropBoxWidth
+  //   centerYFromBottom  = cropBoxOrigin.y + (1 - yRatio) * cropBoxHeight
+  const centerX = cropBoxOrigin.x + validPlacement.xRatio * cropBoxWidth;
+  const centerYFromBottom =
+    cropBoxOrigin.y + (1 - validPlacement.yRatio) * cropBoxHeight;
+  const maxWidth = validPlacement.maxWidthRatio * cropBoxWidth;
 
   return {
     centerX,
@@ -132,14 +165,18 @@ export function checkTwoLineBoxesOverlap(
 }
 
 /**
- * Verifies that text box vertical bounds stay strictly within [0, pageHeight].
+ * Verifies that text box vertical bounds stay strictly within [cropBoxY, cropBoxY + cropBoxHeight].
+ *
+ * For zero-origin surfaces cropBoxY defaults to 0, preserving the original contract.
  */
 export function checkVerticalPageSafety(
   top: number,
   bottom: number,
-  pageHeight: number
+  pageHeight: number,
+  cropBoxY = 0
 ): boolean {
-  return top <= pageHeight + 1e-4 && bottom >= -1e-4;
+  const cropTop = cropBoxY + pageHeight;
+  return top <= cropTop + 1e-4 && bottom >= cropBoxY - 1e-4;
 }
 
 /**
@@ -219,20 +256,30 @@ export function calculateImagePdfDimensions(
 }
 
 /**
- * Validates strict PDF page geometry for Phase 7 single-page rendering.
+ * Validates PDF page geometry for single-page rendering and returns the
+ * visible CropBox so callers can use it as the rendering surface.
  *
- * Strict requirements:
- * 1. Rotation is 0 degrees.
- * 2. CropBox matches MediaBox in x, y, width, and height.
- * 3. CropBox / MediaBox origin is (0, 0).
- * 4. UserUnit is absent, default, or effectively 1.0.
+ * Supported geometry:
+ * 1. Rotation must be 0 degrees (non-zero rotation is not supported).
+ * 2. CropBox must equal MediaBox in all four dimensions (x, y, width, height).
+ *    A non-zero CropBox/MediaBox origin is now accepted: many PDF generators
+ *    legitimately produce pages whose boxes start at e.g. (0, 8.58, ...).
+ * 3. UserUnit must be absent or 1.0.
+ *
+ * What changed vs the previous contract:
+ * - The "origin must be (0, 0)" requirement is removed. CropBox X/Y are now
+ *   returned so the rendering engine can offset PDF-space coordinates correctly.
+ * - CropBox == MediaBox is still required so the visible surface is unambiguous.
+ *
+ * Returns the CropBox so callers use its width/height for layout and its
+ * x/y origin to translate normalised placement into absolute PDF coordinates.
  */
-export function validatePdfPageGeometry(page: PDFPage): void {
+export function validatePdfPageGeometry(page: PDFPage): PdfCropBox {
   // 1. Rotation check
   const rotationAngle = page.getRotation().angle;
   if (rotationAngle % 360 !== 0) {
     throw new UnsupportedTemplateGeometryError(
-      `PDF page has non-zero rotation (${rotationAngle}°). Templates with rotation are not supported in Phase 7.`
+      `PDF page has non-zero rotation (${rotationAngle}°). Templates with rotation are not supported.`
     );
   }
 
@@ -240,19 +287,15 @@ export function validatePdfPageGeometry(page: PDFPage): void {
   const mediaBox = page.getMediaBox();
   const cropBox = page.getCropBox();
 
-  const isOriginZero =
-    Math.abs(cropBox.x) <= GEOMETRY_TOLERANCE_POINTS &&
-    Math.abs(cropBox.y) <= GEOMETRY_TOLERANCE_POINTS;
-
   const matchesMediaBox =
     Math.abs(cropBox.x - mediaBox.x) <= GEOMETRY_TOLERANCE_POINTS &&
     Math.abs(cropBox.y - mediaBox.y) <= GEOMETRY_TOLERANCE_POINTS &&
     Math.abs(cropBox.width - mediaBox.width) <= GEOMETRY_TOLERANCE_POINTS &&
     Math.abs(cropBox.height - mediaBox.height) <= GEOMETRY_TOLERANCE_POINTS;
 
-  if (!matchesMediaBox || !isOriginZero) {
+  if (!matchesMediaBox) {
     throw new UnsupportedTemplateGeometryError(
-      `PDF page has non-standard MediaBox/CropBox geometry. CropBox [${cropBox.x}, ${cropBox.y}, ${cropBox.width}, ${cropBox.height}] must match MediaBox [${mediaBox.x}, ${mediaBox.y}, ${mediaBox.width}, ${mediaBox.height}] with origin (0, 0).`
+      `PDF page CropBox [${cropBox.x}, ${cropBox.y}, ${cropBox.width}, ${cropBox.height}] does not match MediaBox [${mediaBox.x}, ${mediaBox.y}, ${mediaBox.width}, ${mediaBox.height}]. Templates where the visible area differs from the media area are not supported.`
     );
   }
 
@@ -262,10 +305,17 @@ export function validatePdfPageGeometry(page: PDFPage): void {
     const unitValue = rawUserUnit.asNumber();
     if (Math.abs(unitValue - 1.0) > 1e-4) {
       throw new UnsupportedTemplateGeometryError(
-        `PDF page has non-default UserUnit (${unitValue}). Non-standard user space scaling is not supported in Phase 7.`
+        `PDF page has non-default UserUnit (${unitValue}). Non-standard user space scaling is not supported.`
       );
     }
   }
+
+  return {
+    x: cropBox.x,
+    y: cropBox.y,
+    width: cropBox.width,
+    height: cropBox.height,
+  };
 }
 
 /**

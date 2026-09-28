@@ -1,4 +1,4 @@
-import { PDFFont } from "pdf-lib";
+﻿import { PDFFont } from "pdf-lib";
 import { normalizeParticipantName } from "@/lib/participants/normalize";
 import { NameDoesNotFitError, NameFitFailureReason } from "./errors";
 import {
@@ -62,6 +62,8 @@ export interface CalculateNameLayoutOptions {
   centerYFromBottom: number;
   maxWidth: number;
   pageHeight: number;
+  /** Bottom Y of the visible CropBox in PDF user-space. Defaults to 0 for zero-origin pages. */
+  cropBoxY?: number;
   style: RenderCertificateStyle;
   alignment?: "left" | "center" | "right";
 }
@@ -169,6 +171,7 @@ export function calculateNameLayout(options: CalculateNameLayoutOptions): NameLa
     centerYFromBottom,
     maxWidth,
     pageHeight,
+    cropBoxY = 0,
     style,
     alignment = "center",
   } = options;
@@ -211,7 +214,7 @@ export function calculateNameLayout(options: CalculateNameLayoutOptions): NameLa
       const top = baselineY + ascent;
       const bottom = baselineY - descent;
 
-      if (checkVerticalPageSafety(top, bottom, pageHeight)) {
+      if (checkVerticalPageSafety(top, bottom, pageHeight, cropBoxY)) {
         return {
           mode: "single-line",
           fontSize: size,
@@ -309,7 +312,8 @@ export function calculateNameLayout(options: CalculateNameLayoutOptions): NameLa
       const verticallySafe = checkVerticalPageSafety(
         topLineTop,
         bottomLineBottom,
-        pageHeight
+        pageHeight,
+        cropBoxY
       );
 
       if (!verticallySafe) {

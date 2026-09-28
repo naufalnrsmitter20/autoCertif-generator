@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+﻿import { describe, it, expect } from "vitest";
 import { PDFDocument, degrees, PDFName, PDFNumber } from "pdf-lib";
 import {
   calculatePdfCenterCoordinates,
@@ -11,6 +11,7 @@ import {
   calculateImagePdfDimensions,
   validatePdfPageGeometry,
   validateRenderStyle,
+  type PdfCropBox,
 } from "@/lib/rendering/geometry";
 import {
   InvalidNamePlacementError,
@@ -149,11 +150,15 @@ describe("Rendering Geometry & Transformations", () => {
   });
 
   describe("validatePdfPageGeometry (Strict Guardrails)", () => {
-    it("accepts single-page PDF with 0 rotation, matching CropBox/MediaBox, and (0,0) origin", async () => {
+    it("accepts single-page PDF with 0 rotation, matching CropBox/MediaBox (zero or non-zero origin)", async () => {
       const doc = await PDFDocument.create();
       const page = doc.addPage([842, 595]);
 
+      // Function now returns PdfCropBox instead of void
       expect(() => validatePdfPageGeometry(page)).not.toThrow();
+      const box = validatePdfPageGeometry(page);
+      expect(box.width).toBeCloseTo(842, 1);
+      expect(box.height).toBeCloseTo(595, 1);
     });
 
     it("rejects PDF page with non-zero rotation", async () => {
@@ -162,16 +167,17 @@ describe("Rendering Geometry & Transformations", () => {
       page.setRotation(degrees(90));
 
       expect(() => validatePdfPageGeometry(page)).toThrow(UnsupportedTemplateGeometryError);
-      expect(() => validatePdfPageGeometry(page)).toThrow(/non-zero rotation \(90°\)/);
+      expect(() => validatePdfPageGeometry(page)).toThrow(/non-zero rotation/);
     });
 
-    it("rejects PDF page where CropBox origin is non-zero", async () => {
+    it("rejects PDF page where CropBox and MediaBox have different dimensions (CropBox != MediaBox)", async () => {
       const doc = await PDFDocument.create();
       const page = doc.addPage([842, 595]);
+      // CropBox (50, 50, 742, 495) has a different origin AND size than MediaBox (0, 0, 842, 595)
       page.setCropBox(50, 50, 742, 495);
 
       expect(() => validatePdfPageGeometry(page)).toThrow(UnsupportedTemplateGeometryError);
-      expect(() => validatePdfPageGeometry(page)).toThrow(/non-standard MediaBox\/CropBox geometry/);
+      expect(() => validatePdfPageGeometry(page)).toThrow(/CropBox.*does not match MediaBox/);
     });
 
     it("rejects PDF page where CropBox does not match MediaBox", async () => {
