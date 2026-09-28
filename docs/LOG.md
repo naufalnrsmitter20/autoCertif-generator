@@ -1,8 +1,8 @@
 # AutoCertif — Project Log
 
 ## Current State
-**Phase:** Phase 13 — Public Certificate Preview & Download  
-**Status:** PHASE 13 COMPLETE & ACCEPTED — ALL CANONICAL GATES, 37 TEST FILES (396 TESTS), LIVE STORAGE & POSTGRESQL INTEGRATION, PLAYWRIGHT E2E, AND TURBOPACK PRODUCTION BUILD PASSED
+**Phase:** Phase 14 — Full E2E + Regression
+**Status:** IN PROGRESS — canonical code gates pass; two clean final full E2E runs remain blocked by intermittent Supabase pooler DNS failures (`EAI_AGAIN`). Phase 13 remains accepted.
 
 ## Confirmed Product Decisions
 - Product: AutoCertif — `Certificate Generator` System
@@ -271,9 +271,20 @@ Engineering interpretation:
 2. Proceed to **Phase 14 — Full E2E + Regression** according to `docs/PRD.md` and `docs/FSD.md`. Revisit full-suite Playwright multi-file harness stability comprehensively.
 
 ## Open Issues
+- **Phase 14 acceptance:** Targeted critical flow still fails intermittently on `EAI_AGAIN`; do not treat earlier full-suite passes as final acceptance. See the Phase 14 history entry below.
 - **Production Font Asset Debt**: Real-template visual acceptance remains blocked until an approved production font asset and configuration are provisioned. (Test-only font is strictly isolated to test fixtures).
 
 ## History
+
+### 2026-09-28 — Phase 14 continuation, acceptance pending
+- Audited the inherited worktree. Removed the seven speculative `force-dynamic` directives and broad browser/storage retry behavior from the candidate changes. Production build registers all relevant dynamic API routes without those directives. No migration, dependency, font configuration, or product rule changed.
+- Confirmed separate failure causes: Next.js dev/Turbopack had stalled or served framework failures during cold/on-demand route work; production `next start` stabilized those route checks. Current production-server failures are concrete Supabase pooler DNS `EAI_AGAIN`, not application `BatchNotFoundError` or a missing Next.js route. A critical-flow trace showed authenticated `POST /api/admin/batches/<id>/template/initiate` returning JSON 500 after database DNS failure. A template-upload run reached the page error boundary after the bounded batch-read retry exhausted. `destination stream closed early` also appeared in server logs, but was not established as the cause of these failures.
+- Application changes: `lib/participants/service.ts` imports 100 participants with one atomic `createMany` after validation, avoiding the observed five-second timeout from 100 individual transaction inserts. `lib/db-retry.ts` provides three attempts, logged, for only `EAI_AGAIN`, `ECONNRESET`, and `ETIMEDOUT`; read-only calls in `lib/auth.ts`, `lib/batches.ts`, and `lib/search/service.ts` use it. Semantic 404, 401/403, 409, validation, and assertion failures are not retried. The search change followed a server-confirmed `prisma.certificate.findMany()` DNS failure.
+- Harness changes: `package.json`, `playwright.config.ts`, and `scripts/clean-next-dev-types.ts` build and run E2E on `next start`, remove only verified generated `.next/dev/types`, retain failure traces/screenshots, and keep one worker, sequential execution, and zero Playwright retries. `.gitignore` and `eslint.config.mjs` exclude test artifact folders. E2E changes are in `tests/e2e/auth.spec.ts`, `critical-flow.spec.ts`, `generation-management.spec.ts`, `generation.spec.ts`, `participants.spec.ts`, `position-editor.spec.ts`, `public-certificate.spec.ts`, `public-search.spec.ts`, `publication.spec.ts`, and `template-upload.spec.ts`. Exact test-owned cleanup and independent identifiers/paths were improved; public search waits for the matching query response. `tests/unit/participant-service.test.ts`, `batch-capacity.test.ts`, and `db-retry.test.ts` cover the changed behavior.
+- Critical-flow classification: fixture-assisted publication journey, with real admin login, batch creation, template upload, position configuration, and CSV import. It creates unpublished GENERATED certificate fixtures with generated path/time and `isStale=false`, then exercises real Publish and publication snapshots. It does not verify generation through Inngest transport. The 100-participant integration test persisted exactly 100 active participants, initialized 100, and found exactly 100 matching PENDING certificate work records without truncation; it does not prove theoretical loop bounds.
+- Latest gates after changes: Prisma validate PASS, generate PASS, migrate status PASS (four migrations, current); typecheck PASS; lint PASS with one preexisting unused-variable warning in `scripts/verify-phase8-visual.ts`; unit/integration PASS (399 tests, 39 files); production build PASS. Playwright discovery: 21 tests in 11 specs, zero configured retries.
+- Earlier full E2E Run #1 passed 21/21 with zero skipped/retried; its next run failed 2/21 (participant cleanup DNS and a public-search result race). Those harness issues were corrected, but this pair is **not** final acceptance after later edits. Current focused results: public search 2/2 PASS, participants 2/2 PASS, template-upload 2/2 PASS on the recovery check, critical-flow FAIL on database `EAI_AGAIN`. Two consecutive final full E2E runs were **not started** because focused verification remained unstable. No clean-final-run, zero-flaky, or Phase 14 full-pass claim is made.
+- Local Inngest: prior one-off CLI investigation did not prove an event executed through Local Dev Server transport; function discovery alone is insufficient. Cloud Inngest NOT VERIFIED. Production font NOT CONFIGURED; test font TEST-ONLY. Phase 11/12/13 behavior has earlier regression evidence, but final Phase 14 full-suite regression acceptance remains pending. Phase 15 is not ready to start.
 
 ### 2026-09-27 — Phase 13 Public Certificate Preview & Download
 - Implemented Phase 13 adhering strictly to all approved mandatory user specifications and corrections:

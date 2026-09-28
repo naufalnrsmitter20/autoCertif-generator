@@ -11,7 +11,8 @@ export default defineConfig({
   reporter: "list",
   use: {
     baseURL: process.env.NEXTAUTH_URL || "http://localhost:3000",
-    trace: "on-first-retry",
+    trace: "retain-on-failure",
+    screenshot: "only-on-failure",
   },
   projects: [
     {
@@ -20,9 +21,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "bun run dev",
+    command: "bun run start",
     url: "http://localhost:3000",
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 120000,
     env: {
       NODE_OPTIONS: "--max-old-space-size=4096",

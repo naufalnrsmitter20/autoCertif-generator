@@ -34,6 +34,7 @@ vi.mock("@/lib/prisma", () => ({
       findMany: vi.fn(),
       findFirst: vi.fn(),
       create: vi.fn(),
+      createMany: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
     },
@@ -130,39 +131,44 @@ describe("importParticipants", () => {
     await expect(
       importParticipants(BATCH_ID, ["Naufal", "   ", "Budi"])
     ).rejects.toThrow(/empty or invalid/);
-    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.participant.createMany).not.toHaveBeenCalled();
   });
 
-  it("persists valid normalized names via transaction", async () => {
+  it("persists valid normalized names in one bulk statement", async () => {
     vi.mocked(prisma.certificateBatch.findFirst).mockResolvedValueOnce(draftBatch as never);
-    vi.mocked(prisma.$transaction).mockResolvedValueOnce([
-      { id: "p1", name: "Naufal Nabil" },
-      { id: "p2", name: "Budi Santoso" },
-    ] as never);
+    vi.mocked(prisma.participant.createMany).mockResolvedValueOnce({ count: 2 });
 
     const result = await importParticipants(BATCH_ID, [
       "  Naufal Nabil  ",
       "Budi Santoso",
     ]);
 
-    expect(prisma.$transaction).toHaveBeenCalled();
+    expect(prisma.participant.createMany).toHaveBeenCalledWith({
+      data: [
+        { batchId: BATCH_ID, name: "Naufal Nabil", createdAt: expect.any(Date) },
+        { batchId: BATCH_ID, name: "Budi Santoso", createdAt: expect.any(Date) },
+      ],
+    });
     expect(result.count).toBe(2);
   });
 
   it("allows duplicate names in the same import", async () => {
     vi.mocked(prisma.certificateBatch.findFirst).mockResolvedValueOnce(draftBatch as never);
-    vi.mocked(prisma.$transaction).mockResolvedValueOnce([
-      { id: "p1", name: "Budi" },
-      { id: "p2", name: "Budi" },
-    ] as never);
+    vi.mocked(prisma.participant.createMany).mockResolvedValueOnce({ count: 2 });
 
     const result = await importParticipants(BATCH_ID, ["Budi", "Budi"]);
     expect(result.count).toBe(2);
+    expect(prisma.participant.createMany).toHaveBeenCalledWith({
+      data: [
+        { batchId: BATCH_ID, name: "Budi", createdAt: expect.any(Date) },
+        { batchId: BATCH_ID, name: "Budi", createdAt: expect.any(Date) },
+      ],
+    });
   });
 
   it("batch status remains DRAFT after import (no status change)", async () => {
     vi.mocked(prisma.certificateBatch.findFirst).mockResolvedValueOnce(draftBatch as never);
-    vi.mocked(prisma.$transaction).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.participant.createMany).mockResolvedValueOnce({ count: 1 });
 
     await importParticipants(BATCH_ID, ["Naufal"]);
 
@@ -173,15 +179,13 @@ describe("importParticipants", () => {
 
   it("normalizes names server-side during import", async () => {
     vi.mocked(prisma.certificateBatch.findFirst).mockResolvedValueOnce(draftBatch as never);
-    vi.mocked(prisma.$transaction).mockImplementationOnce(async (ops) => ops);
-
-    const participantCreateMock = vi.mocked(prisma.participant.create);
-    participantCreateMock.mockResolvedValue({ id: "p1", name: "Naufal Nabil" } as never);
+    vi.mocked(prisma.participant.createMany).mockResolvedValueOnce({ count: 1 });
 
     await importParticipants(BATCH_ID, ["  Naufal   Nabil  "]);
 
-    // The $transaction was called with create calls that use normalized names
-    expect(prisma.$transaction).toHaveBeenCalled();
+    expect(prisma.participant.createMany).toHaveBeenCalledWith({
+      data: [{ batchId: BATCH_ID, name: "Naufal Nabil", createdAt: expect.any(Date) }],
+    });
   });
 });
 

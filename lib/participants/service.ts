@@ -104,7 +104,7 @@ export async function getActiveParticipants(batchId: string) {
  *  2. Load active batch; verify deletedAt === null; verify status === DRAFT
  *  3. Validate every submitted name independently (normalize + reject empty)
  *  4. Reject the entire import if ANY submitted name is invalid (atomicity)
- *  5. Insert all valid names in a single bounded transaction
+ *  5. Insert all valid names in one atomic bulk statement
  *  6. No Certificate records are created
  *  7. Batch status remains DRAFT
  */
@@ -130,19 +130,11 @@ export async function importParticipants(
     return name;
   });
 
-  // Bulk insert in a single transaction
+  // One statement keeps the import atomic without a per-row transaction loop.
   const now = new Date();
-  await prisma.$transaction(
-    normalized.map((name) =>
-      prisma.participant.create({
-        data: {
-          batchId,
-          name,
-          createdAt: now,
-        },
-      })
-    )
-  );
+  await prisma.participant.createMany({
+    data: normalized.map((name) => ({ batchId, name, createdAt: now })),
+  });
 
   return { count: normalized.length };
 }

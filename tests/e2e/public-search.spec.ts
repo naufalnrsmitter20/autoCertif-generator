@@ -29,7 +29,8 @@ async function queryWithRetry<R extends QueryResultRow = QueryResultRow>(
       if (
         errorCode === "EAI_AGAIN" ||
         errorMsg.includes("EAI_AGAIN") ||
-        errorMsg.includes("timeout")
+        errorCode === "ECONNRESET" ||
+        errorCode === "ETIMEDOUT"
       ) {
         await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
         continue;
@@ -43,6 +44,13 @@ async function queryWithRetry<R extends QueryResultRow = QueryResultRow>(
 test.describe("Public Certificate Search Flow (Phase 12)", () => {
   const timestamp = Date.now();
   const pool = getTestPgPool();
+
+  const p1Name = `Naufal Nabil Ramadhan ${timestamp}`;
+  const budiName = `Budi Santoso ${timestamp}`;
+  const secretName = `Secret Unpublished ${timestamp}`;
+  const softDeletedName = `Soft Deleted Person ${timestamp}`;
+  const editedNewName = `Edited New Name ${timestamp}`;
+  const oldPublishedName = `Old Published Name ${timestamp}`;
 
   let pubBatchId: string | null = null;
   let unpubBatchId: string | null = null;
@@ -80,107 +88,109 @@ test.describe("Public Certificate Search Flow (Phase 12)", () => {
     );
     unpubBatchId = b2Res.rows[0].id;
 
-    // Participant 1: "Naufal Nabil Ramadhan" (Published Batch)
+    // Participant 1: Unique name (Published Batch)
     const p1 = await queryWithRetry(
       pool,
       `INSERT INTO participants (id, "batchId", name, "createdAt", "updatedAt")
-       VALUES ($1, $2, 'Naufal Nabil Ramadhan', NOW(), NOW()) RETURNING id`,
-      [`p1-search-${timestamp}`, pubBatchId]
+       VALUES ($1, $2, $3, NOW(), NOW()) RETURNING id`,
+      [`p1-search-${timestamp}`, pubBatchId, p1Name]
     );
     await queryWithRetry(
       pool,
       `INSERT INTO certificates (
         id, "participantId", "batchId", status, "publishedName", "publishedFilePath", "createdAt", "updatedAt"
-      ) VALUES ($1, $2, $3, 'GENERATED', 'Naufal Nabil Ramadhan', 'certificates/p1.pdf', NOW(), NOW())`,
-      [`c1-search-${timestamp}`, p1.rows[0].id, pubBatchId]
+      ) VALUES ($1, $2, $3, 'GENERATED', $4, 'certificates/p1.pdf', NOW(), NOW())`,
+      [`c1-search-${timestamp}`, p1.rows[0].id, pubBatchId, p1Name]
     );
 
-    // Participant 2 & 3: Duplicate names "Budi Santoso" (Published Batch)
+    // Participant 2 & 3: Duplicate names (Published Batch)
     const p2 = await queryWithRetry(
       pool,
       `INSERT INTO participants (id, "batchId", name, "createdAt", "updatedAt")
-       VALUES ($1, $2, 'Budi Santoso', NOW(), NOW()) RETURNING id`,
-      [`p2-search-${timestamp}`, pubBatchId]
+       VALUES ($1, $2, $3, NOW(), NOW()) RETURNING id`,
+      [`p2-search-${timestamp}`, pubBatchId, budiName]
     );
     await queryWithRetry(
       pool,
       `INSERT INTO certificates (
         id, "participantId", "batchId", status, "publishedName", "publishedFilePath", "createdAt", "updatedAt"
-      ) VALUES ($1, $2, $3, 'GENERATED', 'Budi Santoso', 'certificates/p2.pdf', NOW(), NOW())`,
-      [`c2-search-${timestamp}`, p2.rows[0].id, pubBatchId]
+      ) VALUES ($1, $2, $3, 'GENERATED', $4, 'certificates/p2.pdf', NOW(), NOW())`,
+      [`c2-search-${timestamp}`, p2.rows[0].id, pubBatchId, budiName]
     );
 
     const p3 = await queryWithRetry(
       pool,
       `INSERT INTO participants (id, "batchId", name, "createdAt", "updatedAt")
-       VALUES ($1, $2, 'Budi Santoso', NOW(), NOW()) RETURNING id`,
-      [`p3-search-${timestamp}`, pubBatchId]
+       VALUES ($1, $2, $3, NOW(), NOW()) RETURNING id`,
+      [`p3-search-${timestamp}`, pubBatchId, budiName]
     );
     await queryWithRetry(
       pool,
       `INSERT INTO certificates (
         id, "participantId", "batchId", status, "publishedName", "publishedFilePath", "createdAt", "updatedAt"
-      ) VALUES ($1, $2, $3, 'GENERATED', 'Budi Santoso', 'certificates/p3.pdf', NOW(), NOW())`,
-      [`c3-search-${timestamp}`, p3.rows[0].id, pubBatchId]
+      ) VALUES ($1, $2, $3, 'GENERATED', $4, 'certificates/p3.pdf', NOW(), NOW())`,
+      [`c3-search-${timestamp}`, p3.rows[0].id, pubBatchId, budiName]
     );
 
-    // Participant 4: Replacement in progress (name changed to 'Edited New Name', publishedName is 'Old Published Name')
+    // Participant 4: Replacement in progress (name changed to editedNewName, publishedName is oldPublishedName)
     const p4 = await queryWithRetry(
       pool,
       `INSERT INTO participants (id, "batchId", name, "createdAt", "updatedAt")
-       VALUES ($1, $2, 'Edited New Name', NOW(), NOW()) RETURNING id`,
-      [`p4-search-${timestamp}`, pubBatchId]
+       VALUES ($1, $2, $3, NOW(), NOW()) RETURNING id`,
+      [`p4-search-${timestamp}`, pubBatchId, editedNewName]
     );
     await queryWithRetry(
       pool,
       `INSERT INTO certificates (
         id, "participantId", "batchId", status, "isStale", "publishedName", "publishedFilePath", "createdAt", "updatedAt"
-      ) VALUES ($1, $2, $3, 'PENDING', true, 'Old Published Name', 'certificates/old.pdf', NOW(), NOW())`,
-      [`c4-search-${timestamp}`, p4.rows[0].id, pubBatchId]
+      ) VALUES ($1, $2, $3, 'PENDING', true, $4, 'certificates/old.pdf', NOW(), NOW())`,
+      [`c4-search-${timestamp}`, p4.rows[0].id, pubBatchId, oldPublishedName]
     );
 
     // Participant 5: Unpublished batch certificate
     const p5 = await queryWithRetry(
       pool,
       `INSERT INTO participants (id, "batchId", name, "createdAt", "updatedAt")
-       VALUES ($1, $2, 'Secret Unpublished Participant', NOW(), NOW()) RETURNING id`,
-      [`p5-search-${timestamp}`, unpubBatchId]
+       VALUES ($1, $2, $3, NOW(), NOW()) RETURNING id`,
+      [`p5-search-${timestamp}`, unpubBatchId, secretName]
     );
     await queryWithRetry(
       pool,
       `INSERT INTO certificates (
         id, "participantId", "batchId", status, "publishedName", "publishedFilePath", "createdAt", "updatedAt"
-      ) VALUES ($1, $2, $3, 'GENERATED', 'Secret Unpublished Participant', 'certificates/p5.pdf', NOW(), NOW())`,
-      [`c5-search-${timestamp}`, p5.rows[0].id, unpubBatchId]
+      ) VALUES ($1, $2, $3, 'GENERATED', $4, 'certificates/p5.pdf', NOW(), NOW())`,
+      [`c5-search-${timestamp}`, p5.rows[0].id, unpubBatchId, secretName]
     );
 
     // Participant 6: Soft-deleted participant
     const p6 = await queryWithRetry(
       pool,
       `INSERT INTO participants (id, "batchId", name, "deletedAt", "createdAt", "updatedAt")
-       VALUES ($1, $2, 'Soft Deleted Person', NOW(), NOW(), NOW()) RETURNING id`,
-      [`p6-search-${timestamp}`, pubBatchId]
+       VALUES ($1, $2, $3, NOW(), NOW(), NOW()) RETURNING id`,
+      [`p6-search-${timestamp}`, pubBatchId, softDeletedName]
     );
     await queryWithRetry(
       pool,
       `INSERT INTO certificates (
         id, "participantId", "batchId", status, "publishedName", "publishedFilePath", "createdAt", "updatedAt"
-      ) VALUES ($1, $2, $3, 'GENERATED', 'Soft Deleted Person', 'certificates/p6.pdf', NOW(), NOW())`,
-      [`c6-search-${timestamp}`, p6.rows[0].id, pubBatchId]
+      ) VALUES ($1, $2, $3, 'GENERATED', $4, 'certificates/p6.pdf', NOW(), NOW())`,
+      [`c6-search-${timestamp}`, p6.rows[0].id, pubBatchId, softDeletedName]
     );
   });
 
   test.afterAll(async () => {
     const batchIds = [pubBatchId, unpubBatchId].filter(Boolean);
+    const cleanupErrors: unknown[] = [];
     if (batchIds.length > 0) {
-      await queryWithRetry(pool, `DELETE FROM certificates WHERE "batchId" = ANY($1)`, [batchIds]).catch(() => {});
-      await queryWithRetry(pool, `DELETE FROM participants WHERE "batchId" = ANY($1)`, [batchIds]).catch(() => {});
-      await queryWithRetry(pool, `DELETE FROM certificate_batches WHERE id = ANY($1)`, [batchIds]).catch(() => {});
+      try { await queryWithRetry(pool, `DELETE FROM certificates WHERE "batchId" = ANY($1)`, [batchIds]); } catch (error) { cleanupErrors.push(error); }
+      try { await queryWithRetry(pool, `DELETE FROM participants WHERE "batchId" = ANY($1)`, [batchIds]); } catch (error) { cleanupErrors.push(error); }
+      try { await queryWithRetry(pool, `DELETE FROM certificate_batches WHERE id = ANY($1)`, [batchIds]); } catch (error) { cleanupErrors.push(error); }
     }
     if (templateId) {
-      await queryWithRetry(pool, `DELETE FROM certificate_templates WHERE id = $1`, [templateId]).catch(() => {});
+      try { await queryWithRetry(pool, `DELETE FROM certificate_templates WHERE id = $1`, [templateId]); } catch (error) { cleanupErrors.push(error); }
     }
-    await pool.end().catch(() => {});
+    try { await pool.end(); } catch (error) { cleanupErrors.push(error); }
+    if (cleanupErrors.length > 0) throw new AggregateError(cleanupErrors, "Public search test cleanup failed");
   });
 
   test("public user can search certificates without login and view results", async ({ page }) => {
@@ -194,53 +204,52 @@ test.describe("Public Certificate Search Flow (Phase 12)", () => {
     const searchSubmit = page.locator('[data-testid="public-search-submit"]');
     await expect(searchInput).toBeVisible();
     await expect(searchSubmit).toBeVisible();
+    const submitSearch = async (name: string) => {
+      await searchInput.fill(name);
+      await expect(searchInput).toHaveValue(name);
+      await searchSubmit.click();
+      await page.waitForURL((url) => url.searchParams.get("q") === name);
+    };
 
-    // 2. Partial lowercase search: "naufal"
-    await searchInput.fill("naufal");
-    await searchSubmit.click();
+    // 2. Partial lowercase search using unique name: p1Name.toLowerCase()
+    await submitSearch(p1Name.toLowerCase());
 
-    await expect(page).toHaveURL(/\/\?q=naufal/);
-    await expect(page.locator('[data-testid="search-results-summary"]')).toContainText("Found 1 certificate for “naufal”");
+    await expect(page.locator('[data-testid="search-results-summary"]')).toContainText(`Found 1 certificate for “${p1Name.toLowerCase()}”`);
     await expect(page.locator(`[data-testid="search-result-item-c1-search-${timestamp}"]`)).toBeVisible();
-    await expect(page.locator('[data-testid="published-name"]')).toHaveText("Naufal Nabil Ramadhan");
+    await expect(page.locator('[data-testid="published-name"]')).toHaveText(p1Name);
 
-    // 3. Case-insensitive search: "NAUFAL"
-    await searchInput.fill("NAUFAL");
-    await searchSubmit.click();
+    // 3. Case-insensitive search: p1Name.toUpperCase()
+    await submitSearch(p1Name.toUpperCase());
 
-    await expect(page).toHaveURL(/\/\?q=NAUFAL/);
+    await expect(page.locator('[data-testid="search-results-summary"]')).toContainText(p1Name.toUpperCase());
     await expect(page.locator(`[data-testid="search-result-item-c1-search-${timestamp}"]`)).toBeVisible();
 
-    // 4. Duplicate names: "Budi Santoso" returns both matching certificates
-    await searchInput.fill("Budi Santoso");
-    await searchSubmit.click();
+    // 4. Duplicate names: budiName returns both matching certificates
+    await submitSearch(budiName);
 
-    await expect(page).toHaveURL(/\/\?q=Budi\+Santoso|\/\?q=Budi%20Santoso/);
     const budiResults = page.locator('[data-testid^="search-result-item-"]');
+    await expect(page.locator('[data-testid="search-results-summary"]')).toContainText(budiName);
     await expect(budiResults).toHaveCount(2);
     await expect(page.locator(`[data-testid="search-result-item-c2-search-${timestamp}"]`)).toBeVisible();
     await expect(page.locator(`[data-testid="search-result-item-c3-search-${timestamp}"]`)).toBeVisible();
 
     // 5. Excluded records assertions:
     // a. Unpublished batch record does not appear
-    await searchInput.fill("Secret Unpublished");
-    await searchSubmit.click();
-    await expect(page.locator('[data-testid="no-results-message"]')).toBeVisible();
+    await submitSearch(secretName);
+    await expect(page.locator('[data-testid="no-results-message"]')).toContainText(secretName);
 
     // b. Soft-deleted record does not appear
-    await searchInput.fill("Soft Deleted Person");
-    await searchSubmit.click();
-    await expect(page.locator('[data-testid="no-results-message"]')).toBeVisible();
+    await submitSearch(softDeletedName);
+    await expect(page.locator('[data-testid="no-results-message"]')).toContainText(softDeletedName);
 
     // c. Replacement in progress:
     // Searching NEW uncommitted participant name does NOT match
-    await searchInput.fill("Edited New Name");
-    await searchSubmit.click();
-    await expect(page.locator('[data-testid="no-results-message"]')).toBeVisible();
+    await submitSearch(editedNewName);
+    await expect(page.locator('[data-testid="no-results-message"]')).toContainText(editedNewName);
 
     // Searching OLD published name DOES match
-    await searchInput.fill("Old Published Name");
-    await searchSubmit.click();
+    await submitSearch(oldPublishedName);
+    await expect(page.locator('[data-testid="search-results-summary"]')).toContainText(oldPublishedName);
     await expect(page.locator(`[data-testid="search-result-item-c4-search-${timestamp}"]`)).toBeVisible();
 
     // 6. Clear search returns to initial state
@@ -254,7 +263,7 @@ test.describe("Public Certificate Search Flow (Phase 12)", () => {
   test("responsive layout: no horizontal overflow on mobile and desktop viewports", async ({ page }) => {
     // Mobile Viewport (iPhone SE: 375x667)
     await page.setViewportSize({ width: 375, height: 667 });
-    await page.goto("/?q=naufal");
+    await page.goto(`/?q=${encodeURIComponent(p1Name)}`);
 
     const hasMobileOverflow = await page.evaluate(() => {
       return document.documentElement.scrollWidth > document.documentElement.clientWidth;
@@ -263,7 +272,7 @@ test.describe("Public Certificate Search Flow (Phase 12)", () => {
 
     // Desktop Viewport (1280x720)
     await page.setViewportSize({ width: 1280, height: 720 });
-    await page.goto("/?q=naufal");
+    await page.goto(`/?q=${encodeURIComponent(p1Name)}`);
 
     const hasDesktopOverflow = await page.evaluate(() => {
       return document.documentElement.scrollWidth > document.documentElement.clientWidth;

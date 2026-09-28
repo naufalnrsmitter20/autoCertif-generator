@@ -5,8 +5,8 @@ test.describe("Authentication & Route Protection Flow", () => {
     page,
   }) => {
     await page.goto("/admin");
-    await expect(page).toHaveURL(/\/login(\?callbackUrl=.*)?/);
-    await expect(page.locator("h1")).toContainText("AutoCertif");
+    await expect(page).toHaveURL(/\/login(\?callbackUrl=.*)?/, { timeout: 20000 });
+    await expect(page.locator("h1")).toContainText("AutoCertif", { timeout: 15000 });
   });
 
   test("login page renders accessible form elements", async ({ page }) => {

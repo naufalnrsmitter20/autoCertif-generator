@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth/guard";
 import { batchInputSchema } from "@/lib/validations/batch";
 import { BatchStatus } from "@/generated/prisma/client";
+import { withPrismaConnectionRetry } from "@/lib/db-retry";
 
 export class BatchNotFoundError extends Error {
   constructor(message = "Certificate batch not found or already deleted") {
@@ -18,7 +19,7 @@ export class BatchNotFoundError extends Error {
 export async function getActiveBatches() {
   await requireAdmin();
 
-  return prisma.certificateBatch.findMany({
+  return withPrismaConnectionRetry(() => prisma.certificateBatch.findMany({
     where: {
       deletedAt: null,
     },
@@ -33,7 +34,7 @@ export async function getActiveBatches() {
         },
       },
     },
-  });
+  }));
 }
 
 /**
@@ -43,7 +44,7 @@ export async function getActiveBatches() {
 export async function getActiveBatchById(id: string) {
   await requireAdmin();
 
-  return prisma.certificateBatch.findFirst({
+  return withPrismaConnectionRetry(() => prisma.certificateBatch.findFirst({
     where: {
       id,
       deletedAt: null,
@@ -75,7 +76,7 @@ export async function getActiveBatchById(id: string) {
         },
       },
     },
-  });
+  }));
 }
 
 /**

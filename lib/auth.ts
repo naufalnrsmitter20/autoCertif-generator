@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
 import { UserRole } from "@/generated/prisma/client";
+import { withPrismaConnectionRetry } from "@/lib/db-retry";
 
 export const credentialsSchema = z.object({
   email: z
@@ -36,9 +37,9 @@ export const authOptions: NextAuthOptions = {
 
         const { email, password } = parsed.data;
 
-        const user = await prisma.user.findUnique({
-          where: { email },
-        });
+        const user = await withPrismaConnectionRetry(() =>
+          prisma.user.findUnique({ where: { email } })
+        );
 
         if (!user || user.role !== UserRole.ADMIN) {
           return null;

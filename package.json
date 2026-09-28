@@ -9,7 +9,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:e2e": "playwright test",
+    "test:e2e": "bun scripts/clean-next-dev-types.ts && bun run build && playwright test",
     "admin:provision": "bun scripts/provision-admin.ts",
     "storage:setup": "bun scripts/setup-storage.ts",
     "pdfjs:copy-worker": "bun scripts/copy-pdf-worker.ts",

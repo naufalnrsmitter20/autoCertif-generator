@@ -313,6 +313,7 @@ Show:
 - reason for invalidity
 
 Only confirmed valid rows are imported.
+The confirmed import validates all names before one atomic bulk insert of participant records.
 
 ## 11. Participant CRUD
 After import, ADMIN can:

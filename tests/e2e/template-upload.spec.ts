@@ -32,7 +32,8 @@ async function queryWithRetry<R extends QueryResultRow = QueryResultRow>(
       if (
         errorCode === "EAI_AGAIN" ||
         errorMsg.includes("EAI_AGAIN") ||
-        errorMsg.includes("timeout")
+        errorCode === "ECONNRESET" ||
+        errorCode === "ETIMEDOUT"
       ) {
         await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
         continue;
@@ -56,6 +57,16 @@ function getTestSupabaseClient() {
   });
 }
 
+async function loginAsAdmin(page: import("@playwright/test").Page, email: string, pass: string) {
+  await page.goto("/login");
+  const emailInput = page.locator('input[type="email"]');
+  await expect(emailInput).toBeVisible({ timeout: 15000 });
+  await emailInput.fill(email);
+  await page.fill('input[type="password"]', pass);
+  await page.click('button[type="submit"]');
+  await expect(page).toHaveURL(/\/admin(\/batches)?/, { timeout: 60000 });
+}
+
 test.describe("Certificate Template Upload Flow", () => {
   const adminEmail = process.env.ADMIN_EMAIL;
   const adminPassword = process.env.ADMIN_PASSWORD;
@@ -76,56 +87,70 @@ test.describe("Certificate Template Upload Flow", () => {
     );
 
     const batchName = `Template UI Test Batch ${Date.now()}`;
+    const pool = getTestPgPool();
+    let batchId: string | null = null;
+    let primaryError: unknown;
 
-    // 1. Login as ADMIN
-    await page.goto("/login");
-    await page.fill('input[type="email"]', adminEmail!);
-    await page.fill('input[type="password"]', adminPassword!);
-    await page.click('button[type="submit"]');
+    try {
+      // 1. Login as ADMIN
+      await loginAsAdmin(page, adminEmail!, adminPassword!);
 
-    await expect(page).toHaveURL(/\/admin(\/batches)?/, { timeout: 30000 });
+      // 2. Create batch
+      await page.goto("/admin/batches/new");
+      await page.fill("#batch-name", batchName);
+      await page.click('[data-testid="submit-create-batch"]');
 
-    // 2. Create batch
-    await page.goto("/admin/batches/new");
-    await page.fill("#batch-name", batchName);
-    await page.click('[data-testid="submit-create-batch"]');
+      await page.waitForURL(
+        (url) =>
+          url.pathname.startsWith("/admin/batches/") &&
+          url.pathname !== "/admin/batches/new",
+        { timeout: 15000 }
+      );
+      const batchDetailUrl = page.url();
+      batchId = batchDetailUrl.split("/").pop()!;
 
-    await page.waitForURL(
-      (url) =>
-        url.pathname.startsWith("/admin/batches/") &&
-        url.pathname !== "/admin/batches/new",
-      { timeout: 15000 }
-    );
-    const batchDetailUrl = page.url();
+      // 3. Verify template section exists and is unconfigured
+      const templateSection = page.locator('[data-testid="template-management-section"]');
+      await expect(templateSection).toBeVisible({ timeout: 10000 });
+      await expect(templateSection).toContainText("Certificate Template");
+      await expect(templateSection).toContainText("Single-page background artwork");
 
-    // 3. Verify template section exists and is unconfigured
-    const templateSection = page.locator('[data-testid="template-management-section"]');
-    await expect(templateSection).toBeVisible({ timeout: 10000 });
-    await expect(templateSection).toContainText("Certificate Template");
-    await expect(templateSection).toContainText("Single-page background artwork");
+      // 4. Verify file input element exists
+      const fileInput = page.locator('[data-testid="template-file-input"]');
+      await expect(fileInput).toBeAttached();
 
-    // 4. Verify file input element exists
-    const fileInput = page.locator('[data-testid="template-file-input"]');
-    await expect(fileInput).toBeAttached();
+      // 5. Test client rejection of unsupported extension (.txt file)
+      await fileInput.setInputFiles({
+        name: "invalid.txt",
+        mimeType: "text/plain",
+        buffer: Buffer.from("not a valid certificate"),
+      });
 
-    // 5. Test client rejection of unsupported extension (.txt file)
-    await fileInput.setInputFiles({
-      name: "invalid.txt",
-      mimeType: "text/plain",
-      buffer: Buffer.from("not a valid certificate"),
-    });
+      const errorBanner = page.locator('[data-testid="template-error-banner"]');
+      await expect(errorBanner).toBeVisible({ timeout: 5000 });
+      await expect(errorBanner).toContainText(
+        "Please select a valid single-page PDF, PNG, or JPG/JPEG file."
+      );
 
-    const errorBanner = page.locator('[data-testid="template-error-banner"]');
-    await expect(errorBanner).toBeVisible({ timeout: 5000 });
-    await expect(errorBanner).toContainText(
-      "Please select a valid single-page PDF, PNG, or JPG/JPEG file."
-    );
-
-    // 6. Cleanup test batch
-    await page.goto(batchDetailUrl);
-    await page.click('[data-testid="open-delete-dialog-button"]');
-    await page.click('[data-testid="confirm-delete-batch-button"]');
-    await page.waitForURL((url) => url.pathname === "/admin/batches", { timeout: 15000 });
+      // 6. Cleanup test batch via UI
+      await page.goto(batchDetailUrl);
+      await page.click('[data-testid="open-delete-dialog-button"]');
+      await page.click('[data-testid="confirm-delete-batch-button"]');
+      await page.waitForURL((url) => url.pathname === "/admin/batches", { timeout: 15000 });
+    } catch (error) {
+      primaryError = error;
+      throw error;
+    } finally {
+      const cleanupErrors: unknown[] = [];
+      if (batchId) {
+        try { await queryWithRetry(pool, 'DELETE FROM certificate_batches WHERE id = $1', [batchId]); }
+        catch (error) { cleanupErrors.push(error); }
+      }
+      try { await pool.end(); } catch (error) { cleanupErrors.push(error); }
+      if (cleanupErrors.length > 0) {
+        throw new AggregateError(primaryError ? [primaryError, ...cleanupErrors] : cleanupErrors, "Template test cleanup failed");
+      }
+    }
   });
 
   test("live direct upload, server byte validation, signed preview, and replacement", async ({
@@ -143,16 +168,15 @@ test.describe("Certificate Template Upload Flow", () => {
 
     const batchName = `Live Template Upload ${Date.now()}`;
     const uploadedStoragePaths: string[] = [];
+    const createdTemplateIds: string[] = [];
+    let batchId: string | null = null;
+    let primaryError: unknown;
     const pool = getTestPgPool();
     const supabase = getTestSupabaseClient();
 
     try {
       // 1. Login
-      await page.goto("/login");
-      await page.fill('input[type="email"]', adminEmail!);
-      await page.fill('input[type="password"]', adminPassword!);
-      await page.click('button[type="submit"]');
-      await page.waitForURL(/\/admin/, { timeout: 15000 });
+      await loginAsAdmin(page, adminEmail!, adminPassword!);
 
       // 2. Create batch
       await page.goto("/admin/batches/new");
@@ -165,7 +189,7 @@ test.describe("Certificate Template Upload Flow", () => {
         { timeout: 15000 }
       );
       const batchDetailUrl = page.url();
-      const batchId = batchDetailUrl.split("/").pop()!;
+      batchId = batchDetailUrl.split("/").pop()!;
 
       // 3. Create valid single-page PDF in memory
       const pdfDoc = await PDFDocument.create();
@@ -184,18 +208,7 @@ test.describe("Certificate Template Upload Flow", () => {
 
       // 5. Verify template metadata appears
       const templateName = page.locator('[data-testid="template-display-name"]');
-      try {
-        await expect(templateName).toContainText("e2e-valid-cert", { timeout: 60000 });
-      } catch {
-        const errorBanner = page.locator('[data-testid="template-error-banner"]');
-        if (await errorBanner.isVisible()) {
-          console.log("Retrying upload due to temporary network error...");
-          await page.click('[data-testid="submit-template-upload-button"]');
-          await expect(templateName).toContainText("e2e-valid-cert", { timeout: 60000 });
-        } else {
-          throw new Error("Template name not visible and no error banner found.");
-        }
-      }
+      await expect(templateName).toContainText("e2e-valid-cert", { timeout: 60000 });
 
       const dimensions = page.locator('[data-testid="template-metadata-type-dimensions"]');
       await expect(dimensions).toContainText("PDF");
@@ -206,7 +219,7 @@ test.describe("Certificate Template Upload Flow", () => {
 
       // 6. Verify signed private preview loads successfully
       const previewPdf = page.locator('[data-testid="template-preview-pdf"]');
-      await expect(previewPdf).toBeVisible({ timeout: 15000 });
+      await expect(previewPdf).toBeVisible({ timeout: 30000 });
       const previewDataAttr = await previewPdf.getAttribute("data");
       expect(previewDataAttr).toBeTruthy();
       expect(previewDataAttr).toContain("token=");
@@ -224,6 +237,7 @@ test.describe("Certificate Template Upload Flow", () => {
       );
       expect(batchRes.rows[0]?.templateId).toBeTruthy();
       const initialTemplateId = batchRes.rows[0].templateId;
+      createdTemplateIds.push(initialTemplateId);
 
       const templateRes = await queryWithRetry(
         pool,
@@ -314,7 +328,7 @@ test.describe("Certificate Template Upload Flow", () => {
       // Verify replacement metadata appears
       await expect(page.locator('[data-testid="template-display-name"]')).toContainText(
         "e2e-replacement",
-        { timeout: 20000 }
+        { timeout: 30000 }
       );
       await expect(dimensions).toContainText("PNG");
       await expect(dimensions).toContainText("1024 × 768 px");
@@ -347,6 +361,7 @@ test.describe("Certificate Template Upload Flow", () => {
       const replacementTemplateId = newBatchRes.rows[0]?.templateId;
       expect(replacementTemplateId).toBeTruthy();
       expect(replacementTemplateId).not.toBe(initialTemplateId);
+      createdTemplateIds.push(replacementTemplateId);
 
       const replacementTemplateRes = await queryWithRetry(
         pool,
@@ -369,15 +384,31 @@ test.describe("Certificate Template Upload Flow", () => {
       await page.click('[data-testid="open-delete-dialog-button"]');
       await page.click('[data-testid="confirm-delete-batch-button"]');
       await page.waitForURL((url) => url.pathname === "/admin/batches", { timeout: 15000 });
+    } catch (error) {
+      primaryError = error;
+      throw error;
     } finally {
-      await pool.end();
-      // 11. Test-owned resource cleanup: delete only exact test-owned storage objects
+      // 11. Test-owned resource cleanup in dependency-safe order
+      const cleanupErrors: unknown[] = [];
+      if (batchId) {
+        try { await queryWithRetry(pool, 'DELETE FROM certificate_batches WHERE id = $1', [batchId]); }
+        catch (error) { cleanupErrors.push(error); }
+      }
+      for (const tmplId of createdTemplateIds) {
+        try { await queryWithRetry(pool, 'DELETE FROM certificate_templates WHERE id = $1', [tmplId]); }
+        catch (error) { cleanupErrors.push(error); }
+      }
       for (const storagePath of uploadedStoragePaths) {
         try {
-          await supabase.storage.from("certificate-templates").remove([storagePath]);
-        } catch {
-          // Ignore cleanup errors for already cleaned or missing objects
+          const { error } = await supabase.storage.from("certificate-templates").remove([storagePath]);
+          if (error) cleanupErrors.push(error);
+        } catch (error) {
+          cleanupErrors.push(error);
         }
+      }
+      try { await pool.end(); } catch (error) { cleanupErrors.push(error); }
+      if (cleanupErrors.length > 0) {
+        throw new AggregateError(primaryError ? [primaryError, ...cleanupErrors] : cleanupErrors, "Template test cleanup failed");
       }
     }
   });

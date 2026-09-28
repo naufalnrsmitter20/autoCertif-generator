@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { withPrismaConnectionRetry } from "@/lib/db-retry";
 import {
   normalizeSearchQuery,
   escapeLikePattern,
@@ -38,7 +39,7 @@ export async function searchPublishedCertificates(
 
   const escaped = escapeLikePattern(normalized);
 
-  const certificates = await prisma.certificate.findMany({
+  const certificates = await withPrismaConnectionRetry(() => prisma.certificate.findMany({
     where: {
       deletedAt: null,
       publishedName: {
@@ -67,7 +68,7 @@ export async function searchPublishedCertificates(
       { publishedName: "asc" },
       { id: "asc" },
     ],
-  });
+  }));
 
   return {
     status: "success",

@@ -44,7 +44,8 @@ async function queryWithRetry<R extends QueryResultRow = QueryResultRow>(
       if (
         errorCode === "EAI_AGAIN" ||
         errorMsg.includes("EAI_AGAIN") ||
-        errorMsg.includes("timeout")
+        errorCode === "ECONNRESET" ||
+        errorCode === "ETIMEDOUT"
       ) {
         await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
         continue;

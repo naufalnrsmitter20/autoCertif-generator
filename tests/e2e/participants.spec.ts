@@ -2,6 +2,38 @@ import { test, expect } from "@playwright/test";
 import path from "path";
 import { Pool } from "pg";
 
+async function cleanupTestBatch(batchId: string) {
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    connectionTimeoutMillis: 15000,
+  });
+  const cleanupErrors: unknown[] = [];
+
+  const remove = async (sql: string) => {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await pool.query(sql, [batchId]);
+        return;
+      } catch (error) {
+        const code = (error as { code?: string })?.code;
+        const message = error instanceof Error ? error.message : "";
+        const transient = code === "EAI_AGAIN" || code === "ECONNRESET" ||
+          code === "ETIMEDOUT" || message.includes("EAI_AGAIN");
+        if (!transient || attempt === 3) throw error;
+        console.warn(`Transient cleanup database connection failure; retrying (${attempt}/2).`);
+        await new Promise((resolve) => setTimeout(resolve, attempt * 500));
+      }
+    }
+  };
+
+  try { await remove(`DELETE FROM participants WHERE "batchId" = $1`); }
+  catch (error) { cleanupErrors.push(error); }
+  try { await remove(`DELETE FROM certificate_batches WHERE id = $1`); }
+  catch (error) { cleanupErrors.push(error); }
+  try { await pool.end(); } catch (error) { cleanupErrors.push(error); }
+  if (cleanupErrors.length > 0) throw new AggregateError(cleanupErrors, "Participant test cleanup failed");
+}
+
 /**
  * Phase 6 E2E: CSV Import & Participant CRUD
  *
@@ -26,23 +58,7 @@ test.describe("Phase 6 — CSV Import & Participant CRUD", () => {
   // Cleanup: remove only the exact test-owned batch and its participants
   test.afterAll(async () => {
     if (!createdBatchId) return;
-
-    const pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-    });
-
-    try {
-      await pool.query(
-        `DELETE FROM participants WHERE "batchId" = $1`,
-        [createdBatchId]
-      );
-      await pool.query(
-        `DELETE FROM certificate_batches WHERE id = $1`,
-        [createdBatchId]
-      );
-    } finally {
-      await pool.end();
-    }
+    await cleanupTestBatch(createdBatchId);
   });
 
   test("complete CSV import and participant CRUD flow", async ({ page }) => {
@@ -212,7 +228,7 @@ test.describe("Phase 6 — CSV Import & Participant CRUD", () => {
   test("responsive layout: no horizontal overflow on mobile and desktop", async ({
     page,
   }) => {
-    test.setTimeout(60000);
+    test.setTimeout(90000);
     test.skip(
       !adminEmail || !adminPassword,
       "ADMIN_EMAIL and ADMIN_PASSWORD must be set"
@@ -225,29 +241,50 @@ test.describe("Phase 6 — CSV Import & Participant CRUD", () => {
     await page.click('button[type="submit"]');
     await expect(page).toHaveURL(/\/admin/, { timeout: 30000 });
 
-    // Mobile viewport
-    await page.setViewportSize({ width: 375, height: 812 });
-    await page.goto("/admin/batches");
-    const mobileOverflow = await page.evaluate(
-      () => document.documentElement.scrollWidth > window.innerWidth
-    );
-    expect(mobileOverflow).toBe(false);
+    let responsiveBatchId: string | null = null;
+    let primaryError: unknown;
+    try {
+      await page.goto("/admin/batches/new");
+      await page.fill("#batch-name", `Responsive Participants ${Date.now()}`);
+      await page.click('[data-testid="submit-create-batch"]');
+      await page.waitForURL(
+        (url) => url.pathname.startsWith("/admin/batches/") && url.pathname !== "/admin/batches/new"
+      );
+      responsiveBatchId = page.url().split("/admin/batches/")[1].split("/")[0];
 
-    // If we have a created batch, check participants page on mobile
-    if (createdBatchId) {
-      await page.goto(`/admin/batches/${createdBatchId}/participants`);
+      await page.setViewportSize({ width: 375, height: 812 });
+      await page.goto("/admin/batches");
+      const mobileOverflow = await page.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth
+      );
+      expect(mobileOverflow).toBe(false);
+
+      await page.goto(`/admin/batches/${responsiveBatchId}/participants`);
       const participantsMobileOverflow = await page.evaluate(
         () => document.documentElement.scrollWidth > window.innerWidth
       );
       expect(participantsMobileOverflow).toBe(false);
-    }
 
-    // Desktop viewport
-    await page.setViewportSize({ width: 1280, height: 800 });
-    await page.goto("/admin/batches");
-    const desktopOverflow = await page.evaluate(
-      () => document.documentElement.scrollWidth > window.innerWidth
-    );
-    expect(desktopOverflow).toBe(false);
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.goto("/admin/batches");
+      const desktopOverflow = await page.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth
+      );
+      expect(desktopOverflow).toBe(false);
+    } catch (error) {
+      primaryError = error;
+      throw error;
+    } finally {
+      if (responsiveBatchId) {
+        try {
+          await cleanupTestBatch(responsiveBatchId);
+        } catch (cleanupError) {
+          throw new AggregateError(
+            primaryError ? [primaryError, cleanupError] : [cleanupError],
+            "Responsive participant test cleanup failed"
+          );
+        }
+      }
+    }
   });
 });

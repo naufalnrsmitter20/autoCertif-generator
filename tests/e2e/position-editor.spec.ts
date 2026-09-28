@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { PDFDocument } from "pdf-lib";
 import sharp from "sharp";
-import { Pool } from "pg";
+import { Pool, QueryResult, QueryResultRow } from "pg";
 import { createClient } from "@supabase/supabase-js";
 
 function getTestPgPool() {
@@ -12,8 +12,36 @@ function getTestPgPool() {
   return new Pool({
     connectionString,
     max: 2,
-    connectionTimeoutMillis: 10000,
+    connectionTimeoutMillis: 15000,
   });
+}
+
+async function queryWithRetry<R extends QueryResultRow = QueryResultRow>(
+  pool: Pool,
+  text: string,
+  params: unknown[] = [],
+  retries = 3
+): Promise<QueryResult<R>> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await pool.query(text, params);
+    } catch (err: unknown) {
+      if (i === retries - 1) throw err;
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      const errorCode = (err as { code?: string })?.code;
+      if (
+        errorCode === "EAI_AGAIN" ||
+        errorMsg.includes("EAI_AGAIN") ||
+        errorCode === "ECONNRESET" ||
+        errorCode === "ETIMEDOUT"
+      ) {
+        await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error("Query retry exhaustion");
 }
 
 function getTestSupabaseClient() {
@@ -27,6 +55,35 @@ function getTestSupabaseClient() {
   return createClient(supabaseUrl, supabaseSecret, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+}
+
+async function cleanupPositionTest(
+  pool: Pool,
+  supabase: ReturnType<typeof getTestSupabaseClient>,
+  batchIds: string[],
+  templateIds: string[],
+  storagePaths: string[],
+  primaryError?: unknown
+) {
+  const cleanupErrors: unknown[] = [];
+  for (const id of batchIds) {
+    try { await queryWithRetry(pool, "DELETE FROM certificate_batches WHERE id = $1", [id]); }
+    catch (error) { cleanupErrors.push(error); }
+  }
+  for (const id of templateIds) {
+    try { await queryWithRetry(pool, "DELETE FROM certificate_templates WHERE id = $1", [id]); }
+    catch (error) { cleanupErrors.push(error); }
+  }
+  for (const path of storagePaths) {
+    try {
+      const { error } = await supabase.storage.from("certificate-templates").remove([path]);
+      if (error) cleanupErrors.push(error);
+    } catch (error) { cleanupErrors.push(error); }
+  }
+  try { await pool.end(); } catch (error) { cleanupErrors.push(error); }
+  if (cleanupErrors.length > 0) {
+    throw new AggregateError(primaryError ? [primaryError, ...cleanupErrors] : cleanupErrors, "Position test cleanup failed");
+  }
 }
 
 test.describe("Phase 5 - Name Position Editor Flow", () => {
@@ -57,7 +114,9 @@ test.describe("Phase 5 - Name Position Editor Flow", () => {
     const supabase = getTestSupabaseClient();
     const uploadedStoragePaths: string[] = [];
     const createdBatchIds: string[] = [];
+    const createdTemplateIds: string[] = [];
     const batchName = `Position Editor PDF ${Date.now()}`;
+    let primaryError: unknown;
 
     try {
       // 1. Login as ADMIN
@@ -95,20 +154,8 @@ test.describe("Phase 5 - Name Position Editor Flow", () => {
 
       await page.click('[data-testid="submit-template-upload-button"]');
 
-      // Wait for template to configure with transient network retry
       const templateName = page.locator('[data-testid="template-display-name"]');
-      try {
-        await expect(templateName).toContainText("test-cert", { timeout: 60000 });
-      } catch {
-        const errorBanner = page.locator('[data-testid="template-error-banner"]');
-        if (await errorBanner.isVisible()) {
-          console.log("Retrying upload due to temporary network error...");
-          await page.click('[data-testid="submit-template-upload-button"]');
-          await expect(templateName).toContainText("test-cert", { timeout: 60000 });
-        } else {
-          throw new Error("Template name not visible and no error banner found.");
-        }
-      }
+      await expect(templateName).toContainText("test-cert", { timeout: 60000 });
 
       const configureBtn = page.locator('[data-testid="configure-position-button"]');
       await expect(configureBtn).toBeVisible({ timeout: 15000 });
@@ -119,17 +166,22 @@ test.describe("Phase 5 - Name Position Editor Flow", () => {
       await expect(positionStatus).toContainText("Not configured");
 
       // Record storage path for cleanup
-      const batchRow = await pool.query(
+      const batchRow = await queryWithRetry(
+        pool,
         'SELECT "templateId" FROM certificate_batches WHERE id = $1',
         [batchId]
       );
-      const templateId = batchRow.rows[0].templateId;
-      const tmplRow = await pool.query(
-        'SELECT "sourceFilePath" FROM certificate_templates WHERE id = $1',
-        [templateId]
-      );
-      if (tmplRow.rows[0]?.sourceFilePath) {
-        uploadedStoragePaths.push(tmplRow.rows[0].sourceFilePath);
+      const templateId = batchRow.rows[0]?.templateId;
+      if (templateId) {
+        createdTemplateIds.push(templateId);
+        const tmplRow = await queryWithRetry(
+          pool,
+          'SELECT "sourceFilePath" FROM certificate_templates WHERE id = $1',
+          [templateId]
+        );
+        if (tmplRow.rows[0]?.sourceFilePath) {
+          uploadedStoragePaths.push(tmplRow.rows[0].sourceFilePath);
+        }
       }
 
       // 4. Navigate to Position Editor
@@ -250,14 +302,17 @@ test.describe("Phase 5 - Name Position Editor Flow", () => {
 
       // 12. Test atomic stale-template protection
       // Replace template in DB to simulate another admin replacing the template
-      const replacedTmplRes = await pool.query(
-        `INSERT INTO certificate_templates (id, name, "fileType", "pageWidth", "pageHeight", "createdAt", "updatedAt")
-         VALUES (gen_random_uuid(), 'Replaced Template', 'PDF', 800, 600, NOW(), NOW())
+      const replacedTmplRes = await queryWithRetry(
+        pool,
+        `INSERT INTO certificate_templates (id, name, "fileType", "pageWidth", "pageHeight", "sourceFilePath", "createdAt", "updatedAt")
+         VALUES (gen_random_uuid(), 'Replaced Template', 'PDF', 800, 600, 'templates/dummy-replaced.pdf', NOW(), NOW())
          RETURNING id`
       );
       const replacedTemplateId = replacedTmplRes.rows[0].id;
+      createdTemplateIds.push(replacedTemplateId);
 
-      await pool.query(
+      await queryWithRetry(
+        pool,
         'UPDATE certificate_batches SET "templateId" = $1 WHERE id = $2',
         [replacedTemplateId, batchId]
       );
@@ -275,30 +330,11 @@ test.describe("Phase 5 - Name Position Editor Flow", () => {
       await expect(errorBanner).toContainText("Template Conflict");
       const reloadBtn = page.locator('[data-testid="reload-editor-button"]');
       await expect(reloadBtn).toBeVisible();
-
-      // Clean up replaced template record
-      await pool.query('DELETE FROM certificate_templates WHERE id = $1', [replacedTemplateId]);
+    } catch (error) {
+      primaryError = error;
+      throw error;
     } finally {
-      // Precise cleanup of test-owned records
-      for (const id of createdBatchIds) {
-        try {
-          await pool.query("DELETE FROM certificate_batches WHERE id = $1", [id]);
-        } catch {
-          // ignore cleanup errors
-        }
-      }
-      for (const storagePath of uploadedStoragePaths) {
-        try {
-          await supabase.storage.from("certificate-templates").remove([storagePath]);
-        } catch {
-          // ignore cleanup errors
-        }
-      }
-      try {
-        await pool.end();
-      } catch {
-        // ignore
-      }
+      await cleanupPositionTest(pool, supabase, createdBatchIds, createdTemplateIds, uploadedStoragePaths, primaryError);
     }
   });
 
@@ -317,7 +353,9 @@ test.describe("Phase 5 - Name Position Editor Flow", () => {
     const supabase = getTestSupabaseClient();
     const uploadedStoragePaths: string[] = [];
     const createdBatchIds: string[] = [];
+    const createdTemplateIds: string[] = [];
     const batchName = `Position Editor PNG ${Date.now()}`;
+    let primaryError: unknown;
 
     try {
       // 1. Login
@@ -363,34 +401,28 @@ test.describe("Phase 5 - Name Position Editor Flow", () => {
       await page.click('[data-testid="submit-template-upload-button"]');
 
       const templateName = page.locator('[data-testid="template-display-name"]');
-      try {
-        await expect(templateName).toContainText("cert-image", { timeout: 60000 });
-      } catch {
-        const errorBanner = page.locator('[data-testid="template-error-banner"]');
-        if (await errorBanner.isVisible()) {
-          console.log("Retrying upload due to temporary network error...");
-          await page.click('[data-testid="submit-template-upload-button"]');
-          await expect(templateName).toContainText("cert-image", { timeout: 60000 });
-        } else {
-          throw new Error("Template name not visible and no error banner found.");
-        }
-      }
+      await expect(templateName).toContainText("cert-image", { timeout: 60000 });
 
       const configureBtn = page.locator('[data-testid="configure-position-button"]');
       await expect(configureBtn).toBeVisible({ timeout: 15000 });
 
       // Record storage path
-      const batchRow = await pool.query(
+      const batchRow = await queryWithRetry(
+        pool,
         'SELECT "templateId" FROM certificate_batches WHERE id = $1',
         [batchId]
       );
-      const templateId = batchRow.rows[0].templateId;
-      const tmplRow = await pool.query(
-        'SELECT "sourceFilePath" FROM certificate_templates WHERE id = $1',
-        [templateId]
-      );
-      if (tmplRow.rows[0]?.sourceFilePath) {
-        uploadedStoragePaths.push(tmplRow.rows[0].sourceFilePath);
+      const templateId = batchRow.rows[0]?.templateId;
+      if (templateId) {
+        createdTemplateIds.push(templateId);
+        const tmplRow = await queryWithRetry(
+          pool,
+          'SELECT "sourceFilePath" FROM certificate_templates WHERE id = $1',
+          [templateId]
+        );
+        if (tmplRow.rows[0]?.sourceFilePath) {
+          uploadedStoragePaths.push(tmplRow.rows[0].sourceFilePath);
+        }
       }
 
       // 4. Open editor
@@ -433,28 +465,13 @@ test.describe("Phase 5 - Name Position Editor Flow", () => {
 
       // Verify position status is now "Configured"
       const positionStatus = page.locator('[data-testid="template-position-status"]');
-      await expect(positionStatus).toContainText("Configured");
-      await expect(page.locator('[data-testid="configure-position-button"]')).toContainText("Edit Name Position");
+      await expect(positionStatus).toContainText("Configured", { timeout: 15000 });
+      await expect(page.locator('[data-testid="configure-position-button"]')).toContainText("Edit Name Position", { timeout: 15000 });
+    } catch (error) {
+      primaryError = error;
+      throw error;
     } finally {
-      for (const id of createdBatchIds) {
-        try {
-          await pool.query("DELETE FROM certificate_batches WHERE id = $1", [id]);
-        } catch {
-          // ignore
-        }
-      }
-      for (const storagePath of uploadedStoragePaths) {
-        try {
-          await supabase.storage.from("certificate-templates").remove([storagePath]);
-        } catch {
-          // ignore
-        }
-      }
-      try {
-        await pool.end();
-      } catch {
-        // ignore
-      }
+      await cleanupPositionTest(pool, supabase, createdBatchIds, createdTemplateIds, uploadedStoragePaths, primaryError);
     }
   });
 });

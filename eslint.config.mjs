@@ -16,6 +16,7 @@ const eslintConfig = defineConfig([
     "public/**",
     // Test artifacts
     "test-results/**",
+    "test-results-*/**",
     "playwright-report/**",
     // Agent skill tooling scripts
     ".agents/**",
