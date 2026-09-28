@@ -142,6 +142,17 @@ export default async function HomePage({ searchParams }: PageProps) {
           </section>
         </div>
       </main>
+      <footer className="mx-auto max-w-2xl px-4 pb-6 text-center text-xs text-neutral-gray dark:text-zinc-400 sm:px-6">
+        Created by{" "}
+        <a
+          href="http://github.com/naufalnrsmitter20"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline underline-offset-2 hover:text-charcoal focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 dark:hover:text-zinc-100"
+        >
+          Naufal Nabil Ramadhan
+        </a>
+      </footer>
     </div>
   );
 }
