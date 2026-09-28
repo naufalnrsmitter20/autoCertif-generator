@@ -4,6 +4,11 @@
 **Phase:** Phase 14 — Full E2E + Regression; template typography enhancement implemented
 **Status:** IN PROGRESS — typography editor smoke E2E passes; full PDF editor flow remains blocked intermittently at ADMIN login by database connection failures. Phase 13 remains accepted.
 
+## 2026-09-28 — Participant CSV template download
+
+- Added a secondary download button and the requested CSV guidance to the participant import file picker. The static UTF-8 template contains `name`, `John Doe`, and `Jane Smith`; import parsing and business rules are unchanged.
+- Verified UTF-8 decoding and exact template content. `bun run typecheck` passed. `bun run lint` passed with the existing unused-variable warning in `scripts/verify-phase8-visual.ts`. Focused participant CSV parser and normalization tests passed (38/38).
+
 ## 2026-09-28 — Typography editor runtime prop regression
 - Traced the sole `PositionEditorClient` call site. The current Server Component passes a required `fonts` prop, but the long-running `next dev` process on port 3000 predates the cross-boundary font changes; an out-of-sync runtime payload can omit a prop despite a clean TypeScript build.
 - Added `getAvailableProductionFonts()` to pass only serializable `id`, `family`, `label`, `weight`, and `style` metadata. No filesystem paths or test font are sent to the client.

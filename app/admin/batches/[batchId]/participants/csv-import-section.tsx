@@ -105,8 +105,15 @@ export function CsvImportSection({
             className="block w-full text-sm text-zinc-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-telkom-red file:text-white hover:file:bg-telkom-red-dark focus:outline-none"
           />
           <p className="mt-1 text-xs text-neutral-gray">
-            CSV must have a <code className="font-mono">name</code> column header.
+            Required column: name. Duplicate names are allowed and will be shown as warnings.
           </p>
+          <a
+            href="/autocertif-participant-template.csv"
+            download="autocertif-participant-template.csv"
+            className="mt-3 inline-flex items-center justify-center rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:ring-offset-2"
+          >
+            Download CSV Template
+          </a>
         </div>
       ) : null}
 
