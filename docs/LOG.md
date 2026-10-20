@@ -1,8 +1,25 @@
-﻿# AutoCertif — Project Log
+# AutoCertif — Project Log
 
 ## Current State
-**Phase:** Phase 14 — Full E2E + Regression; template typography enhancement implemented
-**Status:** IN PROGRESS — typography editor smoke E2E passes; full PDF editor flow remains blocked intermittently at ADMIN login by database connection failures. Phase 13 remains accepted.
+**Phase:** Phase 14 — Full E2E + Regression; template typography enhancement implemented; Inngest dispatch resilience & NextAuth secret sync resolved
+**Status:** IN PROGRESS — Certificate generation error handling hardened against unreachable Inngest server; stuck batch recovered to DRAFT; NextAuth secret synchronized.
+
+## 2026-10-20 — Certificate generation Inngest resilience & NextAuth secret synchronization
+
+- **Root Cause Analysis**:
+  - `Generation Error: fetch failed` occurred because `INNGEST_DEV=1` routed dispatch requests to `http://127.0.0.1:8288`, where no Inngest Dev Server was listening, throwing `TypeError: fetch failed` inside `await inngest.send(...)`.
+  - NextAuth's `jwt_session_error decryption operation failed` occurred when stale browser cookies encrypted with a prior secret failed AES-256-GCM decryption, compounded by `NEXTAUTH_SECRET` being undefined in `.env` (NextAuth v4 expects `NEXTAUTH_SECRET`).
+- **Fixes**:
+  - Added `NEXTAUTH_SECRET` to `.env` and `.env.example` matching `AUTH_SECRET`, and updated `lib/auth.ts` to support both `NEXTAUTH_SECRET` and `AUTH_SECRET`.
+  - Added `"inngest:dev": "bunx inngest-cli@latest dev -u http://localhost:3000/api/inngest"` to `package.json`.
+  - Hardened `app/api/admin/batches/[batchId]/generation/route.ts`: wrapped `inngest.send(...)` in try/catch, added automatic batch rollback to `DRAFT` (and cleanup of pending certificate records) if Inngest is unreachable on initial trigger, and replaced raw `fetch failed` error with clear, actionable diagnostics directing the developer to start Inngest Dev Server.
+  - Created and executed `scripts/recover-stuck-batch.ts`, resetting stuck batch `cmvfayq6q000004l7ymgjcng9` back to clean `DRAFT` status with 0 orphaned certificates.
+- **Verification**:
+  - `bun run typecheck` passed (0 errors).
+  - `bun run lint` passed (0 errors, 2 pre-existing unrelated warnings).
+  - `bun run test tests/unit/generation-management.test.ts` passed (13/13).
+  - `bun run test tests/unit/published-edit.test.ts` passed (14/14).
+  - DB verified: Batch `cmvfayq6q000004l7ymgjcng9` restored to `DRAFT` with 60 participants ready for generation.
 
 ## 2026-09-28 — Public page attribution footer
 

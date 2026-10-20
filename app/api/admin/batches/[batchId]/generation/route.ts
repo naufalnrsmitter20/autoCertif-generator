@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, AdminAuthError } from "@/lib/auth/guard";
+import { prisma } from "@/lib/prisma";
 import { inngest } from "@/lib/inngest/client";
 import { initializeGeneration, getRecoverableDispatchKey } from "@/lib/generation/initialize";
 import {
@@ -26,6 +27,17 @@ import { BatchNotFoundError } from "@/lib/batches";
 
 interface RouteParams {
   params: Promise<{ batchId: string }>;
+}
+
+const INNGEST_UNREACHABLE_MESSAGE =
+  "Layanan antrean background (Inngest) tidak dapat dihubungi. Jika menjalankan di environment lokal, pastikan Inngest Dev Server telah dijalankan dengan perintah 'bun run inngest:dev'.";
+
+function isNetworkOrInngestConnectionError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  if (error.message.includes("fetch failed")) return true;
+  const causeCode = (error as { cause?: { code?: string } }).cause?.code;
+  if (causeCode === "ECONNREFUSED" || causeCode === "ETIMEDOUT") return true;
+  return false;
 }
 
 export async function GET(
@@ -75,14 +87,64 @@ export async function POST(
     if (action === "trigger") {
       const result = await initializeGeneration(batchId);
 
-      await inngest.send({
-        name: "autocertif/generation.batch.requested",
-        id: `gen-batch-${batchId}-${result.generationKey}`,
-        data: {
-          batchId,
-          generationKey: result.generationKey,
-        },
-      });
+      try {
+        await inngest.send({
+          name: "autocertif/generation.batch.requested",
+          id: `gen-batch-${batchId}-${result.generationKey}`,
+          data: {
+            batchId,
+            generationKey: result.generationKey,
+          },
+        });
+      } catch (dispatchError) {
+        // Rollback batch to DRAFT and clean up initialized PENDING certificates
+        // so the batch doesn't get permanently stuck in GENERATING state.
+        await prisma
+          .$transaction(async (tx) => {
+            await tx.certificate.deleteMany({
+              where: {
+                batchId,
+                generationKey: result.generationKey,
+                status: "PENDING",
+              },
+            });
+            await tx.certificateBatch.update({
+              where: { id: batchId },
+              data: {
+                status: "DRAFT",
+                currentGenerationKey: null,
+              },
+            });
+          })
+          .catch((rollbackErr) => {
+            console.error(
+              "Failed to rollback batch state after Inngest dispatch failure:",
+              rollbackErr
+            );
+          });
+
+        if (isNetworkOrInngestConnectionError(dispatchError)) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: INNGEST_UNREACHABLE_MESSAGE,
+            },
+            { status: 503 }
+          );
+        }
+
+        const message =
+          dispatchError instanceof Error
+            ? dispatchError.message
+            : "Unknown dispatch error";
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Gagal mengirim antrean generation: ${message}`,
+          },
+          { status: 500 }
+        );
+      }
 
       return NextResponse.json({
         success: true,
@@ -107,14 +169,38 @@ export async function POST(
         );
       }
 
-      await inngest.send({
-        name: "autocertif/generation.batch.requested",
-        id: `gen-batch-${batchId}-${recoverable.generationKey}`,
-        data: {
-          batchId,
-          generationKey: recoverable.generationKey,
-        },
-      });
+      try {
+        await inngest.send({
+          name: "autocertif/generation.batch.requested",
+          id: `gen-batch-${batchId}-${recoverable.generationKey}`,
+          data: {
+            batchId,
+            generationKey: recoverable.generationKey,
+          },
+        });
+      } catch (dispatchError) {
+        if (isNetworkOrInngestConnectionError(dispatchError)) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: INNGEST_UNREACHABLE_MESSAGE,
+            },
+            { status: 503 }
+          );
+        }
+
+        const message =
+          dispatchError instanceof Error
+            ? dispatchError.message
+            : "Unknown dispatch error";
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Gagal mengirim antrean generation: ${message}`,
+          },
+          { status: 500 }
+        );
+      }
 
       return NextResponse.json({
         success: true,
@@ -304,11 +390,24 @@ export async function POST(
       (error instanceof Error &&
         (error.name === "GenerationPreflightError" ||
           error.name === "BatchNotEligibleForGenerationError" ||
-          error.name.endsWith("Error")))
+          (error.name.endsWith("Error") &&
+            error.name !== "TypeError" &&
+            error.name !== "RangeError" &&
+            error.name !== "ReferenceError")))
     ) {
       return NextResponse.json(
         { success: false, error: (error as Error).message },
         { status: 400 }
+      );
+    }
+
+    if (isNetworkOrInngestConnectionError(error)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: INNGEST_UNREACHABLE_MESSAGE,
+        },
+        { status: 503 }
       );
     }
 
