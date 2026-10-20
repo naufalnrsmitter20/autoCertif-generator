@@ -133,137 +133,149 @@ export async function publishBatch(
 ): Promise<PublishBatchResult> {
   await requireAdmin();
 
-  return await prisma.$transaction(async (tx) => {
-    // 1. Re-validate batch state with optimistic concurrency check
-    const batch = await tx.certificateBatch.findFirst({
-      where: {
-        id: batchId,
-        deletedAt: null,
-      },
-      select: {
-        id: true,
-        status: true,
-        publishedAt: true,
-        currentGenerationKey: true,
-        templateId: true,
-      },
-    });
+  return await prisma.$transaction(
+    async (tx) => {
+      // 1. Re-validate batch state with optimistic concurrency check
+      const batch = await tx.certificateBatch.findFirst({
+        where: {
+          id: batchId,
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+          status: true,
+          publishedAt: true,
+          currentGenerationKey: true,
+          templateId: true,
+        },
+      });
 
-    if (!batch) {
-      throw new BatchNotFoundError();
-    }
+      if (!batch) {
+        throw new BatchNotFoundError();
+      }
 
-    if (
-      batch.status !== BatchStatus.GENERATED ||
-      batch.publishedAt !== null ||
-      batch.currentGenerationKey !== expectedCurrentGenerationKey
-    ) {
-      throw new ConcurrentPublicationConflictError(
-        "Batch state changed or generation key is stale. Please refresh and try again."
-      );
-    }
+      if (
+        batch.status !== BatchStatus.GENERATED ||
+        batch.publishedAt !== null ||
+        batch.currentGenerationKey !== expectedCurrentGenerationKey
+      ) {
+        throw new ConcurrentPublicationConflictError(
+          "Batch state changed or generation key is stale. Please refresh and try again."
+        );
+      }
 
-    if (!batch.templateId) {
-      throw new BatchNotEligibleForPublicationError(
-        "Batch cannot be published without a configured template."
-      );
-    }
+      if (!batch.templateId) {
+        throw new BatchNotEligibleForPublicationError(
+          "Batch cannot be published without a configured template."
+        );
+      }
 
-    // 2. Query all active participants and their certificates
-    const participants = await tx.participant.findMany({
-      where: {
-        batchId,
-        deletedAt: null,
-      },
-      include: {
-        certificate: {
-          where: {
-            deletedAt: null,
+      // 2. Query all active participants and their certificates
+      const participants = await tx.participant.findMany({
+        where: {
+          batchId,
+          deletedAt: null,
+        },
+        include: {
+          certificate: {
+            where: {
+              deletedAt: null,
+            },
           },
         },
-      },
-    });
+      });
 
-    // 3. Separate into currently eligible and currently ineligible certificates
-    const eligibleCertificates: Array<{ id: string; name: string; filePath: string }> = [];
-    const ineligibleCertificateIds: string[] = [];
+      // 3. Separate into currently eligible and currently ineligible certificates
+      const eligibleCertificates: Array<{ id: string; name: string; filePath: string }> = [];
+      const ineligibleCertificateIds: string[] = [];
 
-    for (const p of participants) {
-      const cert = p.certificate;
-      if (
-        cert &&
-        cert.status === CertificateStatus.GENERATED &&
-        cert.generatedFilePath !== null &&
-        cert.generatedAt !== null &&
-        cert.isStale === false
-      ) {
-        eligibleCertificates.push({
-          id: cert.id,
-          name: p.name,
-          filePath: cert.generatedFilePath,
-        });
-      } else if (cert) {
-        ineligibleCertificateIds.push(cert.id);
+      for (const p of participants) {
+        const cert = p.certificate;
+        if (
+          cert &&
+          cert.status === CertificateStatus.GENERATED &&
+          cert.generatedFilePath !== null &&
+          cert.generatedAt !== null &&
+          cert.isStale === false
+        ) {
+          eligibleCertificates.push({
+            id: cert.id,
+            name: p.name,
+            filePath: cert.generatedFilePath,
+          });
+        } else if (cert) {
+          ineligibleCertificateIds.push(cert.id);
+        }
       }
-    }
 
-    if (eligibleCertificates.length === 0) {
-      throw new ZeroEligibleCertificatesError();
-    }
+      if (eligibleCertificates.length === 0) {
+        throw new ZeroEligibleCertificatesError();
+      }
 
-    // 4. Update eligible certificates with fresh publication snapshot
-    for (const item of eligibleCertificates) {
-      await tx.certificate.update({
-        where: { id: item.id },
-        data: {
-          publishedName: item.name,
-          publishedFilePath: item.filePath,
-        },
-      });
-    }
+      // 4. Update eligible certificates with fresh publication snapshot in bounded concurrent batches
+      const BATCH_SIZE = 15;
+      for (let i = 0; i < eligibleCertificates.length; i += BATCH_SIZE) {
+        const chunk = eligibleCertificates.slice(i, i + BATCH_SIZE);
+        await Promise.all(
+          chunk.map((item) =>
+            tx.certificate.update({
+              where: { id: item.id },
+              data: {
+                publishedName: item.name,
+                publishedFilePath: item.filePath,
+              },
+            })
+          )
+        );
+      }
 
-    // 5. Clear publication snapshots for ineligible certificates (Guardrail #2 republish hygiene)
-    if (ineligibleCertificateIds.length > 0) {
-      await tx.certificate.updateMany({
+      // 5. Clear publication snapshots for ineligible certificates (Guardrail #2 republish hygiene)
+      if (ineligibleCertificateIds.length > 0) {
+        await tx.certificate.updateMany({
+          where: {
+            id: { in: ineligibleCertificateIds },
+          },
+          data: {
+            publishedName: null,
+            publishedFilePath: null,
+          },
+        });
+      }
+
+      // 6. Transition batch to PUBLISHED and record publishedAt
+      const now = new Date();
+      const batchUpdate = await tx.certificateBatch.updateMany({
         where: {
-          id: { in: ineligibleCertificateIds },
+          id: batchId,
+          status: BatchStatus.GENERATED,
+          publishedAt: null,
+          currentGenerationKey: expectedCurrentGenerationKey,
+          deletedAt: null,
         },
         data: {
-          publishedName: null,
-          publishedFilePath: null,
+          status: BatchStatus.PUBLISHED,
+          publishedAt: now,
         },
       });
+
+      if (batchUpdate.count !== 1) {
+        throw new ConcurrentPublicationConflictError(
+          "Concurrent conflict while finalizing batch publication."
+        );
+      }
+
+      return {
+        batchId,
+        publishedAt: now.toISOString(),
+        publishedCount: eligibleCertificates.length,
+        ineligibleCount: participants.length - eligibleCertificates.length,
+      };
+    },
+    {
+      maxWait: 15000,
+      timeout: 60000,
     }
-
-    // 6. Transition batch to PUBLISHED and record publishedAt
-    const now = new Date();
-    const batchUpdate = await tx.certificateBatch.updateMany({
-      where: {
-        id: batchId,
-        status: BatchStatus.GENERATED,
-        publishedAt: null,
-        currentGenerationKey: expectedCurrentGenerationKey,
-        deletedAt: null,
-      },
-      data: {
-        status: BatchStatus.PUBLISHED,
-        publishedAt: now,
-      },
-    });
-
-    if (batchUpdate.count !== 1) {
-      throw new ConcurrentPublicationConflictError(
-        "Concurrent conflict while finalizing batch publication."
-      );
-    }
-
-    return {
-      batchId,
-      publishedAt: now.toISOString(),
-      publishedCount: eligibleCertificates.length,
-      ineligibleCount: participants.length - eligibleCertificates.length,
-    };
-  });
+  );
 }
 
 /**

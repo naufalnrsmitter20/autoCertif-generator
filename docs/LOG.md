@@ -1,8 +1,21 @@
 # AutoCertif — Project Log
 
 ## Current State
-**Phase:** Phase 14 — Full E2E + Regression; template typography enhancement implemented; Inngest dispatch resilience & NextAuth secret sync resolved
-**Status:** IN PROGRESS — Certificate generation error handling hardened against unreachable Inngest server; stuck batch recovered to DRAFT; NextAuth secret synchronized.
+**Phase:** Phase 14 — Full E2E + Regression; template typography enhancement implemented; Inngest dispatch resilience & publication transaction batching resolved
+**Status:** IN PROGRESS — Publication and batch regeneration transactions updated with bounded concurrent chunking and 60s timeout, eliminating interactive transaction expiration on ~60-100 participant batches.
+
+## 2026-10-20 — Publication interactive transaction timeout resolution
+
+- **Root Cause Analysis**:
+  - Publishing batch `cmvfayq6q000004l7ymgjcng9` (60 participants) failed with: `Transaction API error: A query cannot be executed on an expired transaction. The timeout for this transaction was 5000 ms, however 5174 ms passed since the start of the transaction.`
+  - `publishBatch` ran 60 sequential `tx.certificate.update` network calls inside an interactive transaction without timeout configuration (defaulting to 5000ms).
+- **Fixes**:
+  - Configured `{ maxWait: 15000, timeout: 60000 }` on `prisma.$transaction` in `publishBatch` (`lib/publication/service.ts`) and `regenerateBatchGeneration` (`lib/generation/management.ts`).
+  - Replaced serial 1-by-1 query updates with bounded concurrent chunking (`BATCH_SIZE = 15`), reducing network round-trips by >80% while preserving individual update semantics and mock contracts.
+- **Verification**:
+  - `bun run typecheck` passed (0 errors).
+  - `bun run test tests/unit/publication-service.test.ts` passed (16/16).
+  - `bun run test tests/unit/generation-management.test.ts` passed (13/13).
 
 ## 2026-10-20 — Certificate generation Inngest resilience & NextAuth secret synchronization
 

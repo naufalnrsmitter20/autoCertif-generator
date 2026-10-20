@@ -459,18 +459,24 @@ export async function regenerateBatchGeneration(
       },
     });
 
-    for (const cert of certificates) {
-      await tx.certificate.update({
-        where: { id: cert.id },
-        data: {
-          status: CertificateStatus.PENDING,
-          generationKey: newGenerationKey,
-          generationError: null,
-          isStale: cert.generatedFilePath !== null,
-        },
-      });
+    const BATCH_SIZE = 15;
+    for (let i = 0; i < certificates.length; i += BATCH_SIZE) {
+      const chunk = certificates.slice(i, i + BATCH_SIZE);
+      await Promise.all(
+        chunk.map((cert) =>
+          tx.certificate.update({
+            where: { id: cert.id },
+            data: {
+              status: CertificateStatus.PENDING,
+              generationKey: newGenerationKey,
+              generationError: null,
+              isStale: cert.generatedFilePath !== null,
+            },
+          })
+        )
+      );
     }
-  });
+  }, { maxWait: 15000, timeout: 60000 });
 
   // 5. Enqueue orchestrator event
   await inngest.send({
